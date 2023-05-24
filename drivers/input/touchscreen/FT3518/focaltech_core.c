@@ -922,7 +922,8 @@ static int fts_power_source_init(struct fts_ts_data *ts_data)
 		}
 	}
 
-	ts_data->power_disabled = true;
+	regulator_enable(ts_data->vdd);
+	ts_data->power_disabled = false;
 
 	FTS_FUNC_EXIT();
 	return ret;

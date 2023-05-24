@@ -52,6 +52,9 @@
 #include <mmc/core/mmc_ops.h>
 #include "mmc/host/cqhci-crypto.h"
 
+//bug653742,guodandan.wt,add,20210503,proc file for sdcard slot detect
+#include <linux/proc_fs.h>
+
 #ifdef MTK_MSDC_BRINGUP_DEBUG
 //#include <mach/mt_pmic_wrap.h>
 #endif
@@ -472,8 +475,8 @@ int msdc_clk_stable(struct msdc_host *host, u32 mode, u32 div,
 			pr_info("msdc%d on clock failed ===> retry twice\n",
 				host->id);
 
-			msdc_clk_disable(host);
-			msdc_clk_enable(host);
+			msdc_clk_disable_unprepare(host);
+			msdc_clk_prepare_enable(host);
 			msdc_dump_info(NULL, 0, NULL, host->id);
 			host->prev_cmd_cause_dump = 0;
 		}
@@ -967,6 +970,13 @@ static void msdc_init_hw(struct msdc_host *host)
 
 	/* Reset */
 	msdc_reset_hw(host->id);
+
+#ifdef SUPPORT_NEW_TX_OLD_RX
+	msdc_new_tx_old_rx_setting(host);
+#endif
+#ifdef SUPPORT_NEW_TX_NEW_RX
+	msdc_new_tx_new_rx_setting(host);
+#endif
 
 	/* Disable card detection */
 	MSDC_CLR_BIT32(MSDC_PS, MSDC_PS_CDEN);
@@ -3262,7 +3272,7 @@ int msdc_do_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			pr_debug("[%s]: start pio read\n", __func__);
 #endif
 			if (msdc_pio_read(host, data)) {
-				msdc_clk_disable(host);
+				msdc_clk_disable_unprepare(host);
 				msdc_clk_enable_and_stable(host);
 				goto stop;      /* need cmd12 */
 			}
@@ -3271,7 +3281,7 @@ int msdc_do_request(struct mmc_host *mmc, struct mmc_request *mrq)
 			pr_debug("[%s]: start pio write\n", __func__);
 #endif
 			if (msdc_pio_write(host, data)) {
-				msdc_clk_disable(host);
+				msdc_clk_disable_unprepare(host);
 				msdc_clk_enable_and_stable(host);
 				goto stop;
 			}
@@ -4379,6 +4389,10 @@ void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			}
 			msdc_set_driving(host, host->hw->driving_applied);
 		}
+#if	defined(SUPPORT_NEW_TX_NEW_RX) || defined(SUPPORT_NEW_TX_OLD_RX)
+		pr_notice("[AUTOK]eMMC new tx/rx timing setting\n");
+		msdc_new_rx_tx_timing_setting(host);
+#endif
 	}
 
 	if (host->mclk != ios->clock) {
@@ -4406,7 +4420,6 @@ void msdc_ops_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 			mmc_retune_disable(host->mmc);
 		}
 	}
-
 	spin_unlock(&host->lock);
 }
 
@@ -5116,6 +5129,47 @@ static void msdc_dvfs_kickoff(struct work_struct *work)
 {
 }
 
+//+bug653742,guodandan.wt,add,20210503,proc file for sdcard slot detect
+static int sim_card_status_show(struct seq_file *m, void *v)
+{
+	int gpio_value = 0;
+
+	gpio_value = __gpio_get_value(cd_gpio);
+	pr_debug("%s: gpio_value is %d\n", __func__, gpio_value);
+
+	seq_printf(m, "%d\n", gpio_value);
+
+	return 0;
+}
+static int sim_card_status_proc_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, sim_card_status_show, NULL);
+}
+
+static const struct file_operations sim_card_status_fops = {
+	.open       = sim_card_status_proc_open,
+	.read       = seq_read,
+	.llseek     = seq_lseek,
+	.release    = single_release,
+};
+
+static int sim_card_tray_create_proc(void)
+{
+
+	struct proc_dir_entry *status_entry;
+
+	status_entry = proc_create("sd_tray_gpio_value", 0, NULL, &sim_card_status_fops);
+	if (!status_entry){
+		return -ENOMEM;
+	}
+	return 0;
+}
+
+static void sim_card_tray_remove_proc(void)
+{
+	remove_proc_entry("sd_tray_gpio_value", NULL);
+}
+//-bug653742,guodandan.wt,add,20210503,proc file for sdcard slot detect
 #ifdef CONFIG_MTK_EMMC_HW_CQ
 static void msdc_cqhci_post_cqe_halt(struct mmc_host *mmc)
 {
@@ -5142,6 +5196,8 @@ static void msdc_cqhci_pre_cqe_enable(struct mmc_host *mmc, bool en)
 	void __iomem *base = host->base;
 
 	if (en) {
+		/* switch to DMA mode before cmdq_enable */
+		MSDC_CLR_BIT32(MSDC_CFG, MSDC_CFG_PIO);
 		/* enable busy check */
 		MSDC_SET_BIT32(MSDC_PATCH_BIT1, MSDC_PB1_BUSY_CHECK_SEL);
 		/* default write data / busy timeout 20 * 1000ms */
@@ -5455,6 +5511,13 @@ static int msdc_drv_probe(struct platform_device *pdev)
 
 	if (host->hw->host_function == MSDC_EMMC)
 		msdc_debug_proc_init_bootdevice();
+//+bug653742,guodandan.wt,add,20210503,proc file for sdcard slot detect
+	if(sim_card_tray_create_proc()) {
+		dev_err(&pdev->dev, "creat proc sim_card_status failed\n");
+	} else {
+		dev_dbg(&pdev->dev, "creat proc sim_card_status successed\n");
+	}
+//-bug653742,guodandan.wt,add,20210503,proc file for sdcard slot detect
 
 	return 0;
 
@@ -5492,6 +5555,8 @@ static int msdc_drv_remove(struct platform_device *pdev)
 		clk_disable_unprepare(host->pclk_ctl);
 	if (host->src_hclk_ctl)
 		clk_disable_unprepare(host->src_hclk_ctl);
+	if (host->new_rx_clk_ctl)
+		clk_disable_unprepare(host->new_rx_clk_ctl);
 #endif
 	pm_qos_remove_request(&host->msdc_pm_qos_req);
 	pm_runtime_disable(&pdev->dev);
@@ -5507,7 +5572,8 @@ static int msdc_drv_remove(struct platform_device *pdev)
 
 	if (mem)
 		release_mem_region(mem->start, mem->end - mem->start + 1);
-
+//bug653742,guodandan.wt,add,20210503,proc file for sdcard slot detect
+	sim_card_tray_remove_proc();
 	msdc_remove_host(host);
 
 	return 0;
@@ -5531,6 +5597,8 @@ static int msdc_runtime_suspend(struct device *dev)
 		clk_disable_unprepare(host->pclk_ctl);
 	if (host->src_hclk_ctl)
 		clk_disable_unprepare(host->src_hclk_ctl);
+	if (host->new_rx_clk_ctl)
+		clk_disable_unprepare(host->new_rx_clk_ctl);
 
 	pm_qos_update_request(&host->msdc_pm_qos_req,
 		PM_QOS_DEFAULT_VALUE);
@@ -5546,6 +5614,8 @@ static int msdc_runtime_resume(struct device *dev)
 
 	pm_qos_update_request(&host->msdc_pm_qos_req, 0);
 
+	if (host->new_rx_clk_ctl)
+		(void)clk_prepare_enable(host->new_rx_clk_ctl);
 	if (host->src_hclk_ctl)
 		(void)clk_prepare_enable(host->src_hclk_ctl);
 	if (host->pclk_ctl)

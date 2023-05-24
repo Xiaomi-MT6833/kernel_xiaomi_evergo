@@ -163,6 +163,24 @@ config CHARGER_RT9759
 	  direct charge
 	  It depends on config MTK_CHARGER
 
+config CHARGER_SC8551
+	bool "SC8551 Divider Charger Driver"
+	depends on MTK_CHARGER
+	help
+	  Say Y here to enable support of sc8551 divider charger
+	  It is mainly used as divider charger for
+	  direct charge
+	  It depends on config MTK_CHARGER
+
+config CHARGER_LN8000
+	bool "LN8000 Divider Charger Driver"
+	depends on MTK_CHARGER
+	help
+	  Say Y here to enable support of ln8000 divider charger
+	  It is mainly used as divider charger for
+	  direct charge
+	  It depends on config MTK_CHARGER
+
 config RT_PROP_CHGALGO
 	bool "Richtek Proprietary Charging Algorithm"
 	help

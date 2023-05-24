@@ -618,6 +618,13 @@ config CUSTOM_BATTERY_EXTERNAL_CHANNEL
 	  Say Y to enable support for Customer external gauge.
 	  if unsure ,choose n.
 
+config MTK_DISABLE_TEMP_PROTECT
+        bool "control of TEMP protect"
+        default n
+        help
+          Say Y here to enable a function which disabled TEMP protect...
+          WARNNING:Only SCM could open it.
+
 source "drivers/power/supply/mediatek/battery/Kconfig"
 source "drivers/power/supply/mediatek/charger/Kconfig"
 

@@ -190,9 +190,9 @@ int set_shutdown_cond(int shutdown_cond)
 		sdc.shutdown_status.is_overheat = true;
 		mutex_unlock(&sdc.lock);
 		bm_err("[%s]OVERHEAT shutdown!\n", __func__);
-		mutex_lock(&pm_mutex);
-		kernel_power_off();
-		mutex_unlock(&pm_mutex);
+	//	mutex_lock(&pm_mutex);
+		//kernel_power_off();
+	//	mutex_unlock(&pm_mutex);
 		break;
 	case SOC_ZERO_PERCENT:
 		if (sdc.shutdown_status.is_soc_zero_percent != true) {
@@ -395,18 +395,27 @@ static int shutdown_event_handler(struct shutdown_controller *sdd)
 				if (IS_ENABLED(
 					LOW_TEMP_DISABLE_LOW_BAT_SHUTDOWN)) {
 					if (tmp >= LOW_TEMP_THRESHOLD) {
+/* +Extb HONGMI-84836,wangbin wt.ADD,20210701,add for shutdown after delay time 30s*/
+#ifdef WT_COMPILE_FACTORY_VERSION
 						down_to_low_bat = 1;
+#endif
 						bm_err("normal tmp, battery voltage is low shutdown\n");
 						notify_fg_shutdown();
 					} else if (sdd->avgvbat <=
 						LOW_TMP_BAT_VOLTAGE_LOW_BOUND) {
+#ifdef WT_COMPILE_FACTORY_VERSION
 						down_to_low_bat = 1;
+#endif
 						bm_err("cold tmp, battery voltage is low shutdown\n");
 						notify_fg_shutdown();
 					} else
 						bm_err("low temp disable low battery sd\n");
 				} else {
+#ifdef WT_COMPILE_FACTORY_VERSION
 					down_to_low_bat = 1;
+#endif
+/* -Extb HONGMI-84836,wangbin wt.ADD,20210701,add for shutdown after delay time 30s*/
+
 					bm_err("[%s]avg vbat is low to shutdown\n",
 						__func__);
 					notify_fg_shutdown();
@@ -539,7 +548,9 @@ int mtk_power_misc_psy_event(
 			psy, POWER_SUPPLY_PROP_TEMP, &val);
 		if (!ret) {
 			tmp = val.intval / 10;
-			if (tmp >= BATTERY_SHUTDOWN_TEMPERATURE) {
+			//Extb HONGMI-92179,chenrui1.wt,ADD,20210810,check charger mode avoid reboot after overheat poweroff
+			if (tmp >= BATTERY_SHUTDOWN_TEMPERATURE &&
+					(is_kernel_power_off_charging() != true)) {
 				bm_err(
 					"battery temperature >= %d,shutdown",
 					tmp);

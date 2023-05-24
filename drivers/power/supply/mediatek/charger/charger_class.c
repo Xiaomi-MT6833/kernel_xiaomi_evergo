@@ -267,6 +267,18 @@ int charger_dev_get_eoc_current(struct charger_device *chg_dev, u32 *uA)
 }
 EXPORT_SYMBOL(charger_dev_get_eoc_current);
 
+int charger_dev_set_vrechg(struct charger_device *chg_dev, u32 uV)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->set_vrechg)
+		return chg_dev->ops->set_vrechg(chg_dev, uV);
+
+	return -ENOTSUPP;
+}
+
+EXPORT_SYMBOL(charger_dev_set_vrechg);
+
+
 int charger_dev_kick_wdt(struct charger_device *chg_dev)
 {
 	if (chg_dev != NULL && chg_dev->ops != NULL && chg_dev->ops->kick_wdt)
@@ -618,6 +630,16 @@ int charger_dev_enable_chg_type_det(struct charger_device *chg_dev, bool en)
 	return -ENOTSUPP;
 }
 EXPORT_SYMBOL(charger_dev_enable_chg_type_det);
+
+int charger_dev_rerun_apsd(struct charger_device *chg_dev, bool en)
+{
+	if (chg_dev != NULL && chg_dev->ops != NULL &&
+	    chg_dev->ops->rerun_apsd)
+		return chg_dev->ops->rerun_apsd(chg_dev, en);
+
+	return -ENOTSUPP;
+}
+EXPORT_SYMBOL(charger_dev_rerun_apsd);
 
 int charger_dev_enable_otg(struct charger_device *chg_dev, bool en)
 {

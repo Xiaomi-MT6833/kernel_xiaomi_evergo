@@ -52,6 +52,8 @@
 			mivr = <4400000>;		/* uV */
 			cv = <4350000>;			/* uA */
 			ieoc = <150000>;		/* uA */
+			/*Bug651594,chenrui1,wt,ADD,20210629,add recharge volt*/
+			vrechg = <100000>;		/*uA*/
 			safety_timer = <12>;		/* hour */
 			ircmp_resistor = <25000>;	/* uohm */
 			ircmp_vclamp = <32000>;		/* uV */

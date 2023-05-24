@@ -2,6 +2,7 @@
  * Mediatek's MT6833 SoC device tree source
  *
  * Copyright (C) 2020 MediaTek Inc.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -242,8 +243,9 @@ page_owner=on loop.max_part=7";
 
 		backlight {
 			label = "lcd-backlight";
-			max-brightness = <255>;
-			led-bits = <8>;
+			max-brightness = <2047>;
+			led-bits = <11>;
+			trans-bits = <11>;
 			default-state = "on";
 		};
 	};
@@ -387,7 +389,7 @@ page_owner=on loop.max_part=7";
 
 		zmc-default {
 			compatible = "mediatek,zone_movable_cma";
-			size = <0 0x2d000000>;
+			size = <0 0x35000000>;
 			alignment = <0 0x1000000>;
 			alloc-ranges = <0 0xc0000000 4 0x00000000>;
 		};
@@ -396,7 +398,7 @@ page_owner=on loop.max_part=7";
 			compatible = "mediatek,reserve-memory-scp_share";
 			no-map;
 #ifdef CONFIG_MTK_TINYSYS_SCP_LOGGER_SUPPORT
-			size = <0 0x00300000>; /*3 MB share mem size */
+			size = <0 0x00310000>; /*3.1 MB share mem size */
 #else
 			size = <0 0x00180000>;
 #endif
@@ -493,6 +495,40 @@ page_owner=on loop.max_part=7";
 			     <GIC_SPI 7 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 8 IRQ_TYPE_LEVEL_HIGH>,
 			     <GIC_SPI 0 IRQ_TYPE_LEVEL_HIGH>;
+	};
+
+	bus_parity {
+		compatible = "mediatek,mt6885-bus-parity";
+		reg = <0 0x0c538800 0 0x20>,
+			<0 0x0c538820 0 0x20>,
+			<0 0x0c538840 0 0x20>,
+			<0 0x0c538860 0 0x40>,
+			<0 0x0c5388A0 0 0x30>,
+			<0 0x0c5388D0 0 0x30>,
+			<0 0x10001780 0 0x14>,
+			<0 0x10001794 0 0x14>,
+			<0 0x100017A8 0 0x14>,
+			<0 0x100017BC 0 0x8>,
+			/*<0 0x1030E078 0 0x14>,*/
+			/*<0 0x1030E08C 0 0x14>,*/
+			<0 0x0c53A39C 0 0x4>;
+
+		interrupts = <GIC_SPI 31 IRQ_TYPE_LEVEL_HIGH>,	/* MCU */
+			   <GIC_SPI 177 IRQ_TYPE_LEVEL_HIGH>;	/* Infra */
+		interrupt-names = "mcu-bus-parity", "infra-bus-parity";
+
+		mcu-names = "MST_CCIM0", "MST_CCIM1", "MST_INTAXI", "SLV_1TO2",
+			"SLV_L3C", "SLV_GIC";
+		infra-names = "MCU2EMI_M0", "MCU2EMI_M1", "MCU2IFR_REG",
+			"INF_L3C2MCU";
+		/*infra-names = "MCU2EMI_M0", "MCU2EMI_M1", "MCU2IFR_REG",*/
+		/*	"INF_L3C2MCU", "MCU2SUB_EMI_M0", "MCU2SUB_EMI_M1";*/
+
+		mcu-types = <0 0 0 1 1 1>;
+		infra-types = <1 1 1 0>;
+		/*infra-types = <1 1 1 0 1 1>;*/
+
+		mcu-data-len = <4 4 2 4 2 2>;
 	};
 
 	qos@0011bb00 {
@@ -719,6 +755,11 @@ page_owner=on loop.max_part=7";
 	gauge_timer {
 		compatible = "mediatek,gauge_timer_service";
 	};
+
+simtray {
+	compatible = "xiaomi,simtray-status";
+	status-gpio = <&pio 4 0>;
+};
 
 #if (CONFIG_MTK_GAUGE_VERSION == 30)
 	#include "mediatek/bat_setting/mt6833_battery_prop.dtsi"
@@ -997,66 +1038,65 @@ page_owner=on loop.max_part=7";
 			compatible = "mediatek,mt6853-fhctl";
 			reg = <0 0x1000ce00 0 0x200>,
 				  <0 0x1000c000 0 0xe00>;
-			num-pll = <13>;
 			map0 {
 				domain = "top";
 				method = "fhctl-mcupm";
 				armpll_ll {
 					fh-id = <0>;
-					pll-id = <999>;
+					pll-id = <0>;
 					perms = <0x18>;
 				};
 				armpll_bl0 {
 					fh-id = <1>;
-					pll-id = <999>;
+					pll-id = <1>;
 					perms = <0x18>;
 				};
 				armpll_bl1 {
 					fh-id = <2>;
-					pll-id = <999>;
+					pll-id = <2>;
 					perms = <0x18>;
 				};
 				armpll_bl2 {
 					fh-id = <3>;
-					pll-id = <999>;
+					pll-id = <3>;
 					perms = <0x18>;
 				};
 				npupll {
 					fh-id = <4>;
-					pll-id = <999>;
+					pll-id = <4>;
 				};
 				ccipll {
 					fh-id = <5>;
-					pll-id = <999>;
+					pll-id = <5>;
 					perms = <0x18>;
 				};
 				mfgpll {
 					fh-id = <6>;
-					pll-id = <999>;
+					pll-id = <6>;
 				};
 				mpll {
 					fh-id = <8>;
-					pll-id = <999>;
+					pll-id = <8>;
 				};
 				mmpll {
 					fh-id = <9>;
-					pll-id = <999>;
+					pll-id = <9>;
 				};
 				mainpll {
 					fh-id = <10>;
-					pll-id = <999>;
+					pll-id = <10>;
 				};
 				msdcpll {
 					fh-id = <11>;
-					pll-id = <999>;
+					pll-id = <11>;
 				};
 				adsppll {
 					fh-id = <12>;
-					pll-id = <999>;
+					pll-id = <12>;
 				};
 				tvdpll {
 					fh-id = <14>;
-					pll-id = <999>;
+					pll-id = <14>;
 				};
 			};
 	};
@@ -1438,7 +1478,7 @@ page_owner=on loop.max_part=7";
 		reg = <0 0x10208000 0 0x1000>,
 			<0 0x10001000 0 0x1000>;
 		mediatek,bus_dbg_con_offset = <0x2fc>;
-		interrupt = <GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>;
+		interrupts= <GIC_SPI 201 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
 	dbgtop@1000d000 {
@@ -1463,6 +1503,28 @@ page_owner=on loop.max_part=7";
 	accdet: accdet {
 		compatible = "mediatek,pmic-accdet";
 	};
+	msdc1_ins:msdc1_ins{
+	};
+
+	/*+chk88849, guodandan.wt, modify, 20210907, modify for usb_eye.*/
+	usb_phy_init:usb_phy_init {
+		compatible = "mediatek,phy_tuning";
+		u2_vrt_ref = <5>;
+		u2_term_ref = <5>;
+		u2_enhance = <3>;
+		status = "okay";
+	};
+	/*-chk88849, guodandan.wt, modify, 20210907, modify for usb_eye.*/
+
+	/*+chk88849, guodandan.wt, modify, 20210907, modify for host usb_eye.*/
+	usb_host_init:usb_host_init {
+		compatible = "mediatek,host_tuning";
+		u2_vrt_ref = <4>;
+		u2_term_ref = <4>;
+		u2_enhance = <3>;
+		status = "okay";
+	};
+	/*-chk88849, guodandan.wt, modify, 20210907, modify for host usb_eye.*/
 
 	md_ccif0@1020a000 {
 		compatible = "mediatek,md_ccif0";
@@ -1876,6 +1938,8 @@ page_owner=on loop.max_part=7";
 			 <0x0870 0x00100000 20>;
 		dqopen = <0x0870 0x00200000 21>,
 			 <0x0870 0x00200000 21>;
+		ckdiv4_ca = <0x0B74 0x00000004 2>,
+			 <0x0B74 0x00000004 2>;
 	};
 
 	emichn: emichn@10235000 {
@@ -2434,6 +2498,22 @@ page_owner=on loop.max_part=7";
 		io-channels = <&auxadc 2>;
 		io-channel-names = "thermistor-ch2";
 	};
+
+/* +HONGMI84846, jiangyanjun, ADD, 20210622, S98016AA1 add new NTC configs. */
+	tboard_thermistor5: thermal-sensor5 {
+		compatible = "mediatek,mtboard-thermistor5";
+		io-channels = <&auxadc 4>;
+		io-channel-names = "thermistor-ch4";
+	};
+/* -HONGMI84846, jiangyanjun, ADD, 20210622, S98016AA1 add new NTC configs. */
+
+/* +bug 651594, xuxinyu, ADD, 20210512, S98016AA1 add new NTC configs. */
+	tboard_thermistor6: thermal-sensor6 {
+		compatible = "mediatek,mtboard-thermistor6";
+		io-channels = <&auxadc 5>;
+		io-channel-names = "thermistor-ch5";
+	};
+/* +bug 651594, xuxinyu, ADD, 20210512, S98016AA1 add new NTC configs. */
 	usb0@11200000 {
 		compatible = "mediatek,mt6833-usb20";
 		reg = <0 0x11200000 0 0x10000>,
@@ -2706,6 +2786,10 @@ page_owner=on loop.max_part=7";
 			sound-dai = <&speaker_amp>;
 		};
 	};
+
+       snd_scp_ultra: snd_scp_ultra {
+               compatible = "mediatek,snd_scp_ultra";
+       };
 
 	audio_sram@11212000 {
 		compatible = "mediatek,audio_sram";
@@ -3441,6 +3525,11 @@ page_owner=on loop.max_part=7";
 			<1>; /*MTK_DRM_OPT_CLEAR_LAYER*/
 	};
 
+        irq_nfc: irq_nfc {
+                compatible = "mediatek,irq_nfc-eint";
+        };
+
+
 	disp_mutex0: disp_mutex@14001000 {
 		compatible = "mediatek,disp_mutex0",
 					"mediatek,mt6833-disp-mutex";
@@ -3628,6 +3717,21 @@ page_owner=on loop.max_part=7";
 		phys = <&mipi_tx_config0>;
 		phy-names = "dphy";
 	};
+
+    /*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+    swtp: swtp {
+        compatible = "mediatek, swtp-eint";
+        };
+    swtp_1: swtp_1 {
+        compatible = "mediatek, swtp1-eint";
+        };
+    swtp_2: swtp_2 {
+        compatible = "mediatek, swtp2-eint";
+        };
+    swtp_3: swtp_3 {
+        compatible = "mediatek, swtp3-eint";
+        };
+    /*Bug651590 liuchaochao.wt  20210219 Add swtp feature end*/
 
 	dsi_te: dsi_te {
 		compatible = "mediatek, dsi_te-eint";
@@ -4333,7 +4437,7 @@ page_owner=on loop.max_part=7";
 
 		mboxes = <&gce_mbox 7 0 CMDQ_THR_PRIO_1>,
 			<&gce_mbox 12 0 CMDQ_THR_PRIO_1>,
-			<&gce_mbox_sec 9 0 CMDQ_THR_PRIO_1>;
+			<&gce_mbox_sec 12 0 CMDQ_THR_PRIO_1>;
 		gce-event-names = "venc_eof",
 			"venc_cmdq_pause_done",
 			"venc_mb_done",
@@ -4380,7 +4484,10 @@ page_owner=on loop.max_part=7";
 	vdec@16000000 {
 		compatible = "mediatek,mt6833-vcodec-dec";
 		reg = <0 0x1602f000 0 0x1000>,		/* VDEC_SYS */
+			 <0 0x16029800 0 0x400>,		/* VDEC_UFO */
 			 <0 0x16020000 0 0x400>,		/* VDEC_VLD */
+			 <0 0x16021000 0 0x1000>,		/* VDEC_MC */
+			 <0 0x16023000 0 0x1000>,		/* VDEC_MV */
 			 <0 0x16025000 0 0x1000>;		/* VDEC_MISC */
 		iommus = <&iommu0 M4U_PORT_L4_VDEC_MC_EXT>;
 		mediatek,larb = <&smi_larb4>;
@@ -5024,7 +5131,7 @@ page_owner=on loop.max_part=7";
 
 	memory_ssmr_features: memory-ssmr-features {
 		compatible = "mediatek,memory-ssmr-features";
-		svp-size = <0 0x10000000>;
+		svp-size = <0 0x18000000>;
 		iris-recognition-size = <0 0x10000000>;
 		2d_fr-size = <0 0>;
 		tui-size = <0 0x4000000>;
@@ -5056,6 +5163,12 @@ page_owner=on loop.max_part=7";
 			<&topckgen CLK_TOP_SPI_SEL>,
 			<&infracfg_ao CLK_IFRAO_SPI1>;
 		clock-names = "parent-clk", "sel-clk", "spi-clk";
+	};
+
+	xiaomi_touch {
+		compatible = "xiaomi-touch";
+		status = "ok";
+		touch,name = "xiaomi-touch";
 	};
 
 	spi2: spi2@11012000 {
@@ -5100,6 +5213,10 @@ page_owner=on loop.max_part=7";
 			<&topckgen CLK_TOP_SPI_SEL>,
 			<&infracfg_ao CLK_IFRAO_SPI5>;
 		clock-names = "parent-clk", "sel-clk", "spi-clk";
+	};
+
+	fpsensor_fp_eint:fpsensor_fp_eint{
+		compatible = "mediatek,fpsensor_fp_eint";
 	};
 
 	spi6: spi6@1101d000 {
@@ -5361,6 +5478,12 @@ page_owner=on loop.max_part=7";
 		mediatek,fifo_only;
 	};
 
+        irtx_pwm:irtx_pwm {
+                compatible = "mediatek,irtx-pwm";
+                pwm_ch = <2>;
+                pwm_data_invert = <0>;
+        };
+
 	/* ATF logger */
 	atf_logger {
 		compatible = "mediatek,atf_logger";
@@ -5446,8 +5569,9 @@ page_owner=on loop.max_part=7";
 		/* charging current */
 		usb_charger_current = <500000>;
 		ac_charger_current = <2050000>;
-		ac_charger_input_current = <3200000>;
-		non_std_ac_charger_current = <500000>;
+		ac_charger_input_current = <2000000>;
+		/*Extb HONGMI-84711, chenrui1.wt,MODIFY,20210514,modify the charging current of the non-standard charger to 1A*/
+		non_std_ac_charger_current = <1000000>;
 		charging_host_charger_current = <1500000>;
 		ta_ac_charger_current = <3000000>;
 		pd_charger_current = <500000>;
@@ -5458,10 +5582,18 @@ page_owner=on loop.max_part=7";
 		temp_t1_threshold = <0>;
 	};
 
+	/* +Bug651592 caijiaqi.wt,20210607,ADD Secret battery */
+	onewire_gpio: onewire_gpio {
+	};
+	maxim_ds28e16: maxim_ds28e16 {
+	};
+	/* -Bug651592 caijiaqi.wt,20210607,ADD Secret battery */
+
 	charger: charger {
 		compatible = "mediatek,charger";
 		algorithm_name = "SwitchCharging2";
-		/* enable_sw_jeita; */
+		/* +Extb HONGMI-85045,modify,wangbin.wt.20210623.modify for enable sw jeita*/
+		enable_sw_jeita;
 		/* enable_pe_plus; */
 		/* enable_pe_2; */
 		/* enable_pe_3; */
@@ -5472,22 +5604,25 @@ page_owner=on loop.max_part=7";
 
 		/* common */
 		battery_cv = <4350000>;
-		max_charger_voltage = <6500000>;
+		max_charger_voltage = <14500000>;
 		min_charger_voltage = <4600000>;
 
 		/* dynamic mivr */
 		min_charger_voltage_1 = <4400000>;
 		min_charger_voltage_2 = <4200000>;
-		max_dmivr_charger_current = <1400000>;
+		max_dmivr_charger_current = <2000000>;
 
 		/* charging current */
 		usb_charger_current_suspend = <0>;
 		usb_charger_current_unconfigured = <70000>;
 		usb_charger_current_configured = <500000>;
 		usb_charger_current = <500000>;
-		ac_charger_current = <2050000>;
-		ac_charger_input_current = <3200000>;
-		non_std_ac_charger_current = <500000>;
+		/* +Extb HONGMI-85045,modify,wangbin.wt.20210623.modify for Ibus*/
+		ac_charger_current = <3000000>;
+		ac_charger_input_current = <2000000>;
+		/* -Extb HONGMI-85045,modify,wangbin.wt.20210623.modify for Ibus*/
+		/*Extb HONGMI-84711, chenrui1.wt,MODIFY,20210514,modify the charging current of the non-standard charger to 1A*/
+		non_std_ac_charger_current = <1000000>;
 		charging_host_charger_current = <1500000>;
 		apple_1_0a_charger_current = <650000>;
 		apple_2_1a_charger_current = <800000>;
@@ -5516,7 +5651,7 @@ page_owner=on loop.max_part=7";
 		enable_min_charge_temp;
 		min_charge_temp = <0>;
 		min_charge_temp_plus_x_degree = <6>;
-		max_charge_temp = <50>;
+		max_charge_temp = <58>;
 		max_charge_temp_minus_x_degree = <47>;
 
 		/* PE */

@@ -72,10 +72,19 @@ static struct proc_dir_entry *disp_lowpower_proc;
 static struct proc_dir_entry *mtkfb_debug_procfs;
 #endif
 static struct drm_device *drm_dev;
+static struct DISP_PQ_BYPASS_SWITCH m_old_pq_bypass_switch;
+static struct DISP_PQ_BYPASS_SWITCH m_new_pq_bypass_switch;
+#ifdef MTK_DRM_BRINGUP_STAGE
+bool g_mobile_log = 1;
+bool g_fence_log = 1;
+bool g_irq_log = 1;
+bool g_detail_log = 1;
+#else
 bool g_mobile_log;
 bool g_fence_log;
 bool g_irq_log;
 bool g_detail_log;
+#endif
 bool g_trace_log;
 unsigned int mipi_volt;
 unsigned int disp_met_en;
@@ -1375,6 +1384,43 @@ int mtk_dprec_mmp_dump_ovl_layer(struct mtk_plane_state *plane_state)
 	return -1;
 }
 
+int mtk_drm_ioctl_pq_debug_set_bypass(struct drm_device *dev, void *data,
+	struct drm_file *file_priv)
+{
+	int ret = 0;
+	struct mtk_drm_private *private = dev->dev_private;
+	struct drm_crtc *crtc = private->crtc[0];
+
+	m_old_pq_bypass_switch = m_new_pq_bypass_switch;
+	m_new_pq_bypass_switch = *((struct DISP_PQ_BYPASS_SWITCH *)data);
+
+	DDPFUNC("+");
+
+	if (m_old_pq_bypass_switch.color_bypass !=
+		m_new_pq_bypass_switch.color_bypass)
+		disp_color_set_bypass(crtc, m_new_pq_bypass_switch.color_bypass);
+
+	if (m_old_pq_bypass_switch.ccorr_bypass !=
+		m_new_pq_bypass_switch.ccorr_bypass)
+		disp_ccorr_set_bypass(crtc, m_new_pq_bypass_switch.ccorr_bypass);
+
+	if (m_old_pq_bypass_switch.gamma_bypass !=
+		m_new_pq_bypass_switch.gamma_bypass)
+		disp_gamma_set_bypass(crtc, m_new_pq_bypass_switch.gamma_bypass);
+
+	if (m_old_pq_bypass_switch.dither_bypass !=
+		m_new_pq_bypass_switch.dither_bypass)
+		disp_dither_set_bypass(crtc, m_new_pq_bypass_switch.dither_bypass);
+
+	if (m_old_pq_bypass_switch.aal_bypass !=
+		m_new_pq_bypass_switch.aal_bypass)
+		disp_aal_set_bypass(crtc, m_new_pq_bypass_switch.aal_bypass);
+
+	DDPFUNC("-");
+
+	return ret;
+}
+
 static void process_dbg_opt(const char *opt)
 {
 	DDPINFO("display_debug cmd %s\n", opt);
@@ -1477,6 +1523,18 @@ static void process_dbg_opt(const char *opt)
 		}
 
 		DAL_Clean();
+	} else if (strncmp(opt, "ata_check", 9) == 0) {
+		struct drm_crtc *crtc;
+
+		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
+					typeof(*crtc), head);
+
+		if (!crtc) {
+			DDPPR_ERR("find crtc fail\n");
+			return;
+		}
+
+		mtk_crtc_lcm_ATA(crtc);
 	} else if (strncmp(opt, "path_switch:", 11) == 0) {
 		struct drm_crtc *crtc;
 		int path_sel, ret;
@@ -1827,12 +1885,7 @@ static void process_dbg_opt(const char *opt)
 		struct mtk_ddp_comp *comp;
 		struct drm_crtc *crtc;
 		struct mtk_drm_crtc *mtk_crtc;
-		struct mtk_dsi_lfr_con lfr_con = {0};
-
-		lfr_con.lfr_mode     = mtk_dbg_get_lfr_mode_value();
-		lfr_con.lfr_type     = mtk_dbg_get_lfr_type_value();
-		lfr_con.lfr_enable   = mtk_dbg_get_lfr_enable_value();
-		lfr_con.lfr_skip_num = mtk_dbg_get_lfr_skip_num_value();
+		int lfr_enable = 1;
 
 		/* this debug cmd only for crtc0 */
 		crtc = list_first_entry(&(drm_dev)->mode_config.crtc_list,
@@ -1845,7 +1898,7 @@ static void process_dbg_opt(const char *opt)
 		mtk_crtc = to_mtk_crtc(crtc);
 		comp = mtk_ddp_comp_request_output(mtk_crtc);
 		if (comp && comp->funcs && comp->funcs->io_cmd)
-			comp->funcs->io_cmd(comp, NULL, DSI_LFR_SET, &lfr_con);
+			comp->funcs->io_cmd(comp, NULL, DSI_LFR_SET, &lfr_enable);
 	} else if (strncmp(opt, "LFR_update", 10) == 0) {
 		struct mtk_ddp_comp *comp;
 		struct drm_crtc *crtc;
@@ -2161,7 +2214,7 @@ void disp_dbg_probe(void)
 #endif
 
 #if IS_ENABLED(CONFIG_PROC_FS)
-	mtkfb_procfs = proc_create("mtkfb", S_IFREG | 0444,
+	mtkfb_procfs = proc_create("mtkfb", S_IFREG | 0440,
 				   NULL,
 				   &debug_fops);
 	if (!mtkfb_procfs) {
@@ -2177,14 +2230,14 @@ void disp_dbg_probe(void)
 		goto out;
 	}
 
-	if (!proc_create("idletime", S_IFREG | 0444,
+	if (!proc_create("idletime", S_IFREG | 0440,
 			 disp_lowpower_proc, &idletime_fops)) {
 		pr_info("[%s %d]failed to create idletime in /proc/displowpower\n",
 			__func__, __LINE__);
 		goto out;
 	}
 
-	if (!proc_create("idlevfp", S_IFREG | 0444,
+	if (!proc_create("idlevfp", S_IFREG | 0440,
 		disp_lowpower_proc, &idlevfp_fops)) {
 		pr_info("[%s %d]failed to create idlevfp in /proc/displowpower\n",
 			__func__, __LINE__);
@@ -2197,7 +2250,7 @@ void disp_dbg_probe(void)
 			__func__, __LINE__);
 		goto out;
 	}
-	if (!proc_create("disp_met", S_IFREG | 0444,
+	if (!proc_create("disp_met", S_IFREG | 0440,
 		mtkfb_debug_procfs, &disp_met_fops)) {
 		pr_info("[%s %d]failed to create idlevfp in /proc/mtkfb_debug/disp_met\n",
 			__func__, __LINE__);

@@ -61,18 +61,27 @@
 #endif
 #include "swpm_me.h"
 
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6877)
+#include "include/pmic_api_buck.h"
+#endif
+
 #define DRIVER_NAME "mediatek"
 #define DRIVER_DESC "Mediatek SoC DRM"
 #define DRIVER_DATE "20150513"
 #define DRIVER_MAJOR 1
 #define DRIVER_MINOR 0
 
+atomic_t resume_pending;
+wait_queue_head_t resume_wait_q;
+
+#ifndef MTK_DRM_DELAY_PRESENT_FENCE_SOF
 atomic_t _mtk_fence_idx[3] = {ATOMIC_INIT(-1), ATOMIC_INIT(-1),
 	ATOMIC_INIT(-1)};
 #ifndef MTK_DRM_DELAY_PRESENT_FENCE
 atomic_t _mtk_fence_update_event[3] = {ATOMIC_INIT(0), ATOMIC_INIT(0),
 	ATOMIC_INIT(0)};
 wait_queue_head_t _mtk_fence_wq[3];
+#endif
 #endif
 
 static atomic_t top_isr_ref; /* irq power status protection */
@@ -406,6 +415,7 @@ static void mtk_atomic_force_doze_switch(struct drm_device *dev,
 		/* blocking flush before stop trigger loop */
 		mtk_crtc_pkt_create(&handle, &mtk_crtc->base,
 			mtk_crtc->gce_obj.client[CLIENT_CFG]);
+		/*if ARR4.0 && vdo mode AOD enable together,EVENT_VDO_EOF need confirm*/
 		if (mtk_crtc_is_frame_trigger_mode(crtc))
 			cmdq_pkt_wait_no_clear(handle,
 				mtk_crtc->gce_obj.event[EVENT_STREAM_EOF]);
@@ -420,7 +430,7 @@ static void mtk_atomic_force_doze_switch(struct drm_device *dev,
 #endif
 
 #if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
-	|| defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6877)
+	|| defined(CONFIG_MACH_MT6833)
 		if (!mtk_crtc_is_frame_trigger_mode(crtc))
 			mtk_crtc_stop_sodi_loop(crtc);
 #endif
@@ -461,7 +471,7 @@ static void mtk_atomic_force_doze_switch(struct drm_device *dev,
 			mtk_disp_mutex_src_set(mtk_crtc, true);
 		}
 #if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
-	|| defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6877)
+	|| defined(CONFIG_MACH_MT6833)
 		if (!mtk_crtc_is_frame_trigger_mode(crtc))
 			mtk_crtc_start_sodi_loop(crtc);
 #endif
@@ -484,6 +494,21 @@ static void mtk_atomic_doze_update_dsi_state(struct drm_device *dev,
 		drm_atomic_crtc_needs_modeset(crtc->state),
 		mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE]);
 
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6877)
+	if (mtk_state->doze_changed) {
+		if (mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE] &&
+			prepare) {
+			DDPMSG("enter AOD, disable PMIC LPMODE\n");
+			pmic_ldo_vio18_lp(SRCLKEN0, 0, 1, HW_LP);
+			pmic_ldo_vio18_lp(SRCLKEN2, 0, 1, HW_LP);
+		} else if (!mtk_state->prop_val[CRTC_PROP_DOZE_ACTIVE] &&
+			!prepare) {
+			DDPMSG("exit AOD, enable PMIC LPMODE\n");
+			pmic_ldo_vio18_lp(SRCLKEN0, 1, 0, HW_LP);
+			pmic_ldo_vio18_lp(SRCLKEN2, 1, 0, HW_LP);
+		}
+	}
+#endif
 	if (!mtk_state->doze_changed ||
 		!drm_atomic_crtc_needs_modeset(crtc->state))
 		return;
@@ -1457,8 +1482,8 @@ static const struct mtk_crtc_path_data mt6877_mtk_main_path_data = {
 	.path_req_hrt[DDP_MAJOR][0] = true,
 	.wb_path[DDP_MAJOR] = NULL,
 	.wb_path_len[DDP_MAJOR] = 0,
-	.path[DDP_MINOR][0] = mt6877_mtk_ddp_main_minor,
-	.path_len[DDP_MINOR][0] = ARRAY_SIZE(mt6877_mtk_ddp_main_minor),
+	.path[DDP_MINOR][0] = NULL,
+	.path_len[DDP_MINOR][0] = 0,
 	.path_req_hrt[DDP_MINOR][0] = false,
 	.path[DDP_MINOR][1] = mt6877_mtk_ddp_main_minor_sub,
 	.path_len[DDP_MINOR][1] = ARRAY_SIZE(mt6877_mtk_ddp_main_minor_sub),
@@ -1580,7 +1605,7 @@ const struct mtk_session_mode_tb mt6853_mode_tb[MTK_DRM_SESSION_NUM] = {
 			},
 		[MTK_DRM_SESSION_DOUBLE_DL] = {
 
-				.en = 0,
+				.en = 1,
 				.ddp_mode = {DDP_MAJOR, DDP_MAJOR, DDP_MAJOR},
 			},
 		[MTK_DRM_SESSION_DC_MIRROR] = {
@@ -1756,6 +1781,7 @@ static const struct mtk_mmsys_driver_data mt6877_mmsys_driver_data = {
 	.mmsys_id = MMSYS_MT6877,
 	.mode_tb = mt6877_mode_tb,
 	.sodi_config = mt6877_mtk_sodi_config,
+	.bypass_infra_ddr_control = true,
 };
 
 static const struct mtk_mmsys_driver_data mt6833_mmsys_driver_data = {
@@ -1770,6 +1796,40 @@ static const struct mtk_mmsys_driver_data mt6833_mmsys_driver_data = {
 };
 
 #ifdef MTK_DRM_FENCE_SUPPORT
+void mtk_drm_suspend_release_sf_present_fence(struct device *dev,
+					      unsigned int index)
+{
+	struct mtk_drm_private *private = dev_get_drvdata(dev);
+
+	mtk_release_sf_present_fence(private->session_id[index],
+			atomic_read(&private->crtc_sf_present[index]));
+}
+
+#ifdef MTK_DRM_DELAY_PRESENT_FENCE_SOF
+void mtk_drm_suspend_release_present_fence(struct device *dev,
+	unsigned int index)
+{
+	struct mtk_drm_private *private = dev_get_drvdata(dev);
+
+	mtk_release_present_fence(private->session_id[index],
+		atomic_read(&private->crtc_present[index]));
+}
+
+int mtk_drm_suspend_release_fence(struct device *dev)
+{
+	unsigned int i = 0;
+	struct mtk_drm_private *private = dev_get_drvdata(dev);
+
+	for (i = 0; i < MTK_TIMELINE_OUTPUT_TIMELINE_ID; i++) {
+		DDPINFO("%s layerid=%d\n", __func__, i);
+		mtk_release_layer_fence(private->session_id[0], i);
+	}
+	/* release present fence */
+	mtk_drm_suspend_release_present_fence(dev, 0);
+	mtk_drm_suspend_release_sf_present_fence(dev, 0);
+	return 0;
+}
+#else
 #ifndef MTK_DRM_DELAY_PRESENT_FENCE
 static int mtk_drm_fence_release_thread(void *data)
 {
@@ -1866,6 +1926,7 @@ void mtk_drm_suspend_release_present_fence(struct device *dev,
 	mtk_release_present_fence(private->session_id[index],
 				  atomic_read(&private->crtc_present[index]));
 }
+#endif
 #endif
 
 /*---------------- function for repaint start ------------------*/
@@ -2059,6 +2120,7 @@ void mtk_drm_top_clk_disable_unprepare(struct drm_device *drm)
 
 bool mtk_drm_top_clk_isr_get(char *master)
 {
+#ifndef MTK_DRM_BRINGUP_STAGE
 	unsigned long flags = 0;
 
 	spin_lock_irqsave(&top_clk_lock, flags);
@@ -2070,11 +2132,14 @@ bool mtk_drm_top_clk_isr_get(char *master)
 	}
 	atomic_inc(&top_isr_ref);
 	spin_unlock_irqrestore(&top_clk_lock, flags);
+#endif
 	return true;
 }
 
 void mtk_drm_top_clk_isr_put(char *master)
 {
+#ifndef MTK_DRM_BRINGUP_STAGE
+
 	unsigned long flags = 0;
 
 	spin_lock_irqsave(&top_clk_lock, flags);
@@ -2086,6 +2151,7 @@ void mtk_drm_top_clk_isr_put(char *master)
 
 	atomic_dec(&top_isr_ref);
 	spin_unlock_irqrestore(&top_clk_lock, flags);
+#endif
 }
 
 static void mtk_drm_first_enable(struct drm_device *drm)
@@ -2197,6 +2263,11 @@ int mtk_drm_get_display_caps_ioctl(struct drm_device *dev, void *data,
 #ifdef DRM_MMPATH
 	private->HWC_gpid = task_tgid_nr(current);
 #endif
+
+	if (mtk_drm_helper_get_opt(private->helper_opt, MTK_DRM_OPT_SF_PF) &&
+	    !mtk_crtc_is_frame_trigger_mode(private->crtc[0]))
+		caps_info->disp_feature_flag |=
+				DRM_DISP_FEATURE_SF_PRESENT_FENCE;
 
 	return ret;
 }
@@ -2579,8 +2650,9 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 	for (i = 0; i < MAX_CRTC ; ++i)
 		atomic_set(&private->crtc_present[i], 0);
 	atomic_set(&private->rollback_all, 0);
-#ifdef MTK_DRM_FENCE_SUPPORT
-#ifndef MTK_DRM_DELAY_PRESENT_FENCE
+#if defined(MTK_DRM_FENCE_SUPPORT) &&\
+	!defined(MTK_DRM_DELAY_PRESENT_FENCE) &&\
+	!defined(MTK_DRM_DELAY_PRESENT_FENCE_SOF)
 	/* fence release kthread */
 	init_waitqueue_head(&_mtk_fence_wq[0]);
 	init_waitqueue_head(&_mtk_fence_wq[1]);
@@ -2595,7 +2667,6 @@ static int mtk_drm_kms_init(struct drm_device *drm)
 		DDPPR_ERR("Failed to create fence release thread\n");
 		goto err_kms_helper_poll_fini;
 	}
-#endif
 #endif
 
 #ifdef CONFIG_DRM_MEDIATEK_DEBUG_FS
@@ -2653,6 +2724,9 @@ static const struct drm_ioctl_desc mtk_ioctls[] = {
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_CRTC_GETFENCE, mtk_drm_crtc_getfence_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
+	DRM_IOCTL_DEF_DRV(MTK_CRTC_GETSFFENCE,
+			  mtk_drm_crtc_get_sf_fence_ioctl,
+			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_WAIT_REPAINT, mtk_drm_wait_repaint_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_DISPLAY_CAPS, mtk_drm_get_display_caps_ioctl,
@@ -2662,6 +2736,8 @@ static const struct drm_ioctl_desc mtk_ioctls[] = {
 	DRM_IOCTL_DEF_DRV(MTK_GET_SESSION_INFO, mtk_drm_get_info_ioctl,
 			  DRM_UNLOCKED | DRM_AUTH | DRM_RENDER_ALLOW),
 	DRM_IOCTL_DEF_DRV(MTK_GET_MASTER_INFO, mtk_drm_get_master_info_ioctl,
+			  DRM_UNLOCKED),
+	DRM_IOCTL_DEF_DRV(MTK_PQ_DEBUG, mtk_drm_ioctl_pq_debug_set_bypass,
 			  DRM_UNLOCKED),
 	DRM_IOCTL_DEF_DRV(MTK_SET_CCORR, mtk_drm_ioctl_set_ccorr,
 			  DRM_UNLOCKED),
@@ -2883,7 +2959,7 @@ static int mtk_drm_bind(struct device *dev)
 	crtc = list_first_entry(&(drm)->mode_config.crtc_list, typeof(*crtc),
 				head);
 	mtk_drm_assert_layer_init(crtc);
-#ifdef CONFIG_FPGA_EARLY_PORTING
+#ifdef MTK_DRM_BRINGUP_STAGE
 	pan_display_test(1, 32);
 	mtk_drm_crtc_analysis(crtc);
 	mtk_drm_crtc_dump(crtc);
@@ -3317,13 +3393,11 @@ static int mtk_drm_probe(struct platform_device *pdev)
 		    comp_type == MTK_DISP_RSZ ||
 		    comp_type == MTK_DISP_POSTMASK || comp_type == MTK_DSI
 		    || comp_type == MTK_DISP_DSC || comp_type == MTK_DPI
-#ifndef DRM_BYPASS_PQ
 		    || comp_type == MTK_DISP_COLOR ||
 		    comp_type == MTK_DISP_CCORR ||
 		    comp_type == MTK_DISP_GAMMA || comp_type == MTK_DISP_AAL ||
 		    comp_type == MTK_DISP_DITHER ||
 		    comp_type == MTK_DMDP_AAL
-#endif
 #ifdef CONFIG_MTK_HDMI_SUPPORT
 		    || comp_type == MTK_DP_INTF || comp_type == MTK_DISP_DPTX
 #endif
@@ -3415,6 +3489,20 @@ static int mtk_drm_remove(struct platform_device *pdev)
 }
 
 #ifdef CONFIG_PM_SLEEP
+
+static int mtk_drm_sys_prepare(struct device *dev)
+{
+	atomic_inc(&resume_pending);
+	return 0;
+}
+
+static void mtk_drm_sys_complete(struct device *dev)
+{
+	atomic_set(&resume_pending, 0);
+	wake_up_all(&resume_wait_q);
+	return;
+}
+
 static int mtk_drm_sys_suspend(struct device *dev)
 {
 	struct mtk_drm_private *private = dev_get_drvdata(dev);
@@ -3457,8 +3545,12 @@ static int mtk_drm_sys_resume(struct device *dev)
 }
 #endif
 
-static SIMPLE_DEV_PM_OPS(mtk_drm_pm_ops, mtk_drm_sys_suspend,
-			 mtk_drm_sys_resume);
+static const struct dev_pm_ops mtk_drm_pm_ops = {
+	.prepare = mtk_drm_sys_prepare,
+	.complete = mtk_drm_sys_complete,
+	.suspend = mtk_drm_sys_suspend,
+	.resume = mtk_drm_sys_resume,
+};
 
 static const struct of_device_id mtk_drm_of_ids[] = {
 	{.compatible = "mediatek,mt2701-mmsys",

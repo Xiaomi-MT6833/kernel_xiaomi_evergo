@@ -25,6 +25,9 @@
 #include <uapi/linux/sched/types.h>
 #include <drm/drmP.h>
 #include <linux/soc/mediatek/mtk-cmdq.h>
+#if defined(CONFIG_MACH_MT6877)
+#include <linux/pinctrl/consumer.h>
+#endif
 
 #include "mtk_drm_drv.h"
 #include "mtk_drm_ddp_comp.h"
@@ -36,7 +39,11 @@
 #include "mtk_drm_trace.h"
 
 #define ESD_TRY_CNT 5
-#define ESD_CHECK_PERIOD 2000 /* ms */
+#define ESD_CHECK_PERIOD 3000 /* ms */
+
+bool g_trigger_disp_esd_recovery = false;
+
+static atomic_t is_panel_dead;
 
 /* pinctrl implementation */
 long _set_state(struct drm_crtc *crtc, const char *name)
@@ -356,6 +363,11 @@ static int mtk_drm_request_eint(struct drm_crtc *crtc)
 	return ret;
 }
 
+int get_panel_dead_status(void) {
+	return atomic_read(&is_panel_dead);
+}
+EXPORT_SYMBOL(get_panel_dead_status);
+
 static int mtk_drm_esd_check(struct drm_crtc *crtc)
 {
 	struct mtk_drm_crtc *mtk_crtc = to_mtk_crtc(crtc);
@@ -519,12 +531,13 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 		do {
 			ret = mtk_drm_esd_check(crtc);
 
-			if (!ret) /* success */
+			if ((!ret)&&(!g_trigger_disp_esd_recovery)) /* success */
 				break;
 
 			DDPPR_ERR(
 				"[ESD]esd check fail, will do esd recovery. try=%d\n",
 				i);
+			atomic_set(&is_panel_dead, 1);
 			mtk_drm_esd_recover(crtc);
 			recovery_flg = 1;
 		} while (++i < ESD_TRY_CNT);
@@ -540,6 +553,8 @@ static int mtk_drm_esd_check_worker_kthread(void *data)
 		} else if (recovery_flg) {
 			DDPINFO("[ESD] esd recovery success\n");
 			recovery_flg = 0;
+			atomic_set(&is_panel_dead, 0);
+			g_trigger_disp_esd_recovery = false;
 		}
 		mtk_drm_trace_end();
 		DDP_MUTEX_UNLOCK(&mtk_crtc->lock, __func__, __LINE__);

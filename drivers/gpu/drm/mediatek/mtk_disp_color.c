@@ -2835,10 +2835,12 @@ static void mtk_color_stop(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
 		DRM_ERROR("Failed to disable power domain: %d\n", ret);
 }
 
-static void mtk_color_bypass(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle)
+static void mtk_color_bypass(struct mtk_ddp_comp *comp, int bypass,
+	struct cmdq_pkt *handle)
 {
 	struct mtk_disp_color *color = comp_to_color(comp);
 
+	DDPINFO("%s: bypass: %d\n", __func__, bypass);
 	cmdq_pkt_write(handle, comp->cmdq_base,
 		       comp->regs_pa + DISP_COLOR_CFG_MAIN,
 		       COLOR_BYPASS_ALL | COLOR_SEQ_SEL, ~0);
@@ -3148,12 +3150,22 @@ static const struct mtk_disp_color_data mt6853_color_driver_data = {
 	.support_shadow = false,
 };
 
+static const struct mtk_disp_color_data mt6877_color_driver_data = {
+	.color_offset = DISP_COLOR_START_MT6873,
+	.support_color21 = true,
+	.support_color30 = false,
+	.reg_table = {0x14009000, 0x1400B000, 0x1400C000,
+			0x1400D000, 0x1400F000, 0x1400A000},
+	.color_window = 0x40185E57,
+	.support_shadow = false,
+};
+
 static const struct mtk_disp_color_data mt6833_color_driver_data = {
 	.color_offset = DISP_COLOR_START_MT6873,
 	.support_color21 = true,
 	.support_color30 = false,
-	.reg_table = {0x14009000, 0x1400A000, 0x1400B000,
-			0x1400C000, 0x1400E000},
+	.reg_table = {0x14009000, 0x1400B000, 0x1400C000,
+			0x1400D000, 0x1400F000},
 	.color_window = 0x40185E57,
 	.support_shadow = false,
 };
@@ -3172,7 +3184,7 @@ static const struct of_device_id mtk_disp_color_driver_dt_match[] = {
 	{.compatible = "mediatek,mt6853-disp-color",
 	 .data = &mt6853_color_driver_data},
 	{.compatible = "mediatek,mt6877-disp-color",
-	 .data = &mt6853_color_driver_data},
+	 .data = &mt6877_color_driver_data},
 	{.compatible = "mediatek,mt6833-disp-color",
 	 .data = &mt6833_color_driver_data},
 	{},
@@ -3218,4 +3230,12 @@ void mtk_color_setbypass(struct mtk_ddp_comp *comp, struct cmdq_pkt *handle,
 	} else {
 		DDPINFO("%s, default_comp is null\n", __func__);
 	}
+}
+
+void disp_color_set_bypass(struct drm_crtc *crtc, int bypass)
+{
+	int ret;
+
+	ret = mtk_crtc_user_cmd(crtc, default_comp, BYPASS_COLOR, &bypass);
+	DDPFUNC("ret = %d", ret);
 }

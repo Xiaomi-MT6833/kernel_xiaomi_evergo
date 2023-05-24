@@ -683,6 +683,7 @@ same with 6873
 	#define SEL_IN_FROM_DISP_RSZ0		(1)
 	#define WDMA0_SEL_IN_FROM_DISP_OVL0_2L	(2)
 	#define WDMA0_SEL_IN_FROM_DISP_OVL0	(3)
+	#define MT6877_WDMA0_SEL_IN_FROM_DISP_OVL1_2L	(5)
 
 #define MT6853_DISP_MUTEX0_MOD0 0x30
 #define MT6853_DISP_MUTEX0_SOF 0x2C
@@ -729,6 +730,9 @@ same with 6873
 #define MT6877_MUTEX_MOD_DISP_DSI0 BIT(14)
 #define MT6877_MUTEX_MOD_DISP_WDMA0 BIT(15)
 #define MT6877_MUTEX_MOD_DISP_PWM0 BIT(16)
+#define MT6877_MUTEX_MOD_DISP_OVL1_2L BIT(17)
+#define MT6877_MUTEX_MOD_DISP_UFBC_WDMA0 BIT(18)
+
 
 #define MT6877_MUTEX_SOF_SINGLE_MODE 0
 #define MT6877_MUTEX_SOF_DSI0 1
@@ -985,6 +989,7 @@ static const unsigned int mt6853_mutex_mod[DDP_COMPONENT_ID_MAX] = {
 static const unsigned int mt6877_mutex_mod[DDP_COMPONENT_ID_MAX] = {
 		[DDP_COMPONENT_OVL0] = MT6877_MUTEX_MOD_DISP_OVL0,
 		[DDP_COMPONENT_OVL0_2L] = MT6877_MUTEX_MOD_DISP_OVL0_2L,
+		[DDP_COMPONENT_OVL1_2L] = MT6877_MUTEX_MOD_DISP_OVL1_2L,
 		[DDP_COMPONENT_RDMA0] = MT6877_MUTEX_MOD_DISP_RDMA0,
 		[DDP_COMPONENT_RSZ0] = MT6877_MUTEX_MOD_DISP_RSZ0,
 		[DDP_COMPONENT_COLOR0] = MT6877_MUTEX_MOD_DISP_COLOR0,
@@ -2826,6 +2831,10 @@ static char *ddp_get_mutex_module0_name_mt6877(unsigned int bit)
 		return "disp_wdma0";
 	case 16:
 		return "disp_pwm0";
+	case 17:
+		return "disp_ovl1_2l";
+	case 18:
+		return "disp_ufbc_wdma0";
 	default:
 		return "mutex-unknown";
 	}
@@ -4249,6 +4258,10 @@ static int mtk_ddp_sel_in_MT6877(const struct mtk_mmsys_reg_data *data,
 		next == DDP_COMPONENT_WDMA0) {
 		*addr = MT6853_DISP_REG_CONFIG_DISP_WDMA0_SEL_IN;
 		value = WDMA0_SEL_IN_FROM_DISP_OVL0_2L;
+	} else if (cur == DDP_COMPONENT_OVL1_2L &&
+		next == DDP_COMPONENT_WDMA0) {
+		*addr = MT6853_DISP_REG_CONFIG_DISP_WDMA0_SEL_IN;
+		value = MT6877_WDMA0_SEL_IN_FROM_DISP_OVL1_2L;
 	/*DISP_RSZ0_SEL*/
 	} else if (cur == DDP_COMPONENT_OVL0_2L &&
 		next == DDP_COMPONENT_RSZ0) {

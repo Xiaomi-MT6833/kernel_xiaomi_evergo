@@ -56,7 +56,12 @@ static int ext_id_tuning(struct drm_device *dev,
 static unsigned int roll_gpu_for_idle;
 static int g_emi_bound_table[HRT_LEVEL_NUM];
 
+#if defined(CONFIG_MACH_MT6853) || defined(CONFIG_MACH_MT6833) || \
+	defined(CONFIG_MACH_MT6877)
+#define RSZ_TILE_LENGTH 1088
+#else
 #define RSZ_TILE_LENGTH 1440
+#endif
 #define RSZ_IN_MAX_HEIGHT 4096
 #define DISP_RSZ_LAYER_NUM 2
 
@@ -1568,7 +1573,7 @@ static int mtk_lye_get_comp_id(int disp_idx, struct drm_device *drm_dev,
 		else
 			return DDP_COMPONENT_OVL0;
 	}
-#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
+#if defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893) || defined(CONFIG_MACH_MT6877)
 	else if (disp_idx == 1)
 		return DDP_COMPONENT_OVL2_2L;
 	else
@@ -1887,7 +1892,10 @@ static int check_layering_result(struct drm_mtk_layering_info *info)
 
 static int check_disp_info(struct drm_mtk_layering_info *disp_info)
 {
-	int disp_idx, ghead, gtail;
+	int disp_idx = 0;
+	int ghead = -1;
+	int gtail = -1;
+	int layer_num = 0;
 	int i;
 
 	if (disp_info == NULL) {
@@ -1897,7 +1905,7 @@ static int check_disp_info(struct drm_mtk_layering_info *disp_info)
 
 	for (i = 0; i < 3; i++) {
 		int mode = disp_info->disp_mode[i];
-		int layer_num = disp_info->layer_num[i];
+		layer_num = disp_info->layer_num[i];
 
 		if (mode < 0 || mode >= MTK_DRM_SESSION_NUM) {
 			DDPPR_ERR("[HRT] i %d, invalid mode %d\n", i, mode);
@@ -1921,18 +1929,23 @@ static int check_disp_info(struct drm_mtk_layering_info *disp_info)
 	}
 
 	for (disp_idx = 0; disp_idx < HRT_TYPE_NUM; disp_idx++) {
-		if (disp_info->layer_num[disp_idx] > 0 &&
+		layer_num = disp_info->layer_num[disp_idx];
+		if (layer_num > 0 &&
 		    disp_info->input_config[disp_idx] == NULL) {
 			DDPPR_ERR(
 				"[HRT]input config is empty,disp:%d,l_num:%d\n",
-				disp_idx, disp_info->layer_num[disp_idx]);
+				disp_idx, layer_num);
 			return -1;
 		}
 
 		ghead = disp_info->gles_head[disp_idx];
 		gtail = disp_info->gles_tail[disp_idx];
-		if ((ghead < 0 && gtail >= 0) || (gtail < 0 && ghead >= 0)) {
-			dump_disp_info(disp_info, DISP_DEBUG_LEVEL_ERR);
+		if ((!((ghead == -1) && (gtail == -1)) &&
+			!((ghead >= 0) && (gtail >= 0))) ||
+			(ghead >= layer_num) ||
+			(gtail >= layer_num) ||
+			(ghead > gtail)) {
+			//dump_disp_info(disp_info, DISP_DEBUG_LEVEL_ERR);
 			DDPPR_ERR("[HRT]gles invalid,disp:%d,head:%d,tail:%d\n",
 				  disp_idx, disp_info->gles_head[disp_idx],
 				  disp_info->gles_tail[disp_idx]);
@@ -2502,7 +2515,8 @@ static int layering_rule_start(struct drm_mtk_layering_info *disp_info_user,
 					       ADJUST_LAYOUT_OVERLAP_CAL);
 	overlap_num = calc_hrt_num(dev, &layering_info);
 	layering_info.hrt_weight = overlap_num;
-	DDPINFO("overlap_num %u\n", layering_info.hrt_weight);
+	DDPINFO("min(input_layer,ovl_support_layer) overlap_num %u\n",
+		layering_info.hrt_weight);
 
 	if (l_rule_ops->fbdc_restore_layout)
 		l_rule_ops->fbdc_restore_layout(&layering_info,
@@ -2531,6 +2545,7 @@ static int layering_rule_start(struct drm_mtk_layering_info *disp_info_user,
 	lyeblob_ids = kzalloc(sizeof(struct mtk_drm_lyeblob_ids), GFP_KERNEL);
 
 	ret = dispatch_ovl_id(&layering_info, lyeblob_ids, dev);
+	DDPINFO("real ovl input layer overlap_num %u\n", layering_info.hrt_weight);
 
 	check_layering_result(&layering_info);
 

@@ -20,7 +20,11 @@
 
 #include <drm/drm_sysfs.h>
 #include <drm/drmP.h>
+#include <drm/drm_connector.h>
 #include "drm_internal.h"
+
+#include "linux/hardware_info.h"
+extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
 
 #define to_drm_minor(d) dev_get_drvdata(d)
 #define to_drm_connector(d) dev_get_drvdata(d)
@@ -228,17 +232,93 @@ static ssize_t modes_show(struct device *device,
 
 	return written;
 }
+extern ssize_t lcm_mipi_reg_write(char *buf, size_t count);
+extern ssize_t lcm_mipi_reg_read(char *buf);
+
+static ssize_t mipi_reg_show(struct device *device,
+			    struct device_attribute *attr,
+			   char *buf)
+{
+	return lcm_mipi_reg_read(buf);
+}
+
+static ssize_t mipi_reg_store(struct device *device,
+			   struct device_attribute *attr,
+			   const char *buf, size_t count)
+{
+	int rc = 0;
+	rc = lcm_mipi_reg_write((char *)buf, count);
+	return rc;
+}
+
+extern unsigned int panel_white_point_x;
+extern unsigned int panel_white_point_y;
+extern unsigned int panel_white_point_lv;
+
+static ssize_t white_point_x_show(struct device *device,
+			    struct device_attribute *attr,
+			   char *buf)
+{
+	return sprintf(buf, "%u\n", panel_white_point_x);
+}
+
+static ssize_t white_point_y_show(struct device *device,
+			    struct device_attribute *attr,
+			   char *buf)
+{
+	return sprintf(buf, "%u\n", panel_white_point_y);
+}
+
+static ssize_t white_point_lv_show(struct device *device,
+			    struct device_attribute *attr,
+			   char *buf)
+{
+	return sprintf(buf, "%u\n", panel_white_point_lv);
+}
+
+static ssize_t lcm_info_show(struct device *device,
+			    struct device_attribute *attr,
+			   char *buf)
+{
+	return sprintf(buf, "%s\n", Lcm_name);
+}
+
+static ssize_t panel_event_show(struct device *device,
+                           struct device_attribute *attr,
+                           char *buf)
+{
+        ssize_t ret = 0;
+        struct drm_connector *connector = to_drm_connector(device);
+        if (!connector) {
+                pr_info("%s-%d connector is NULL \r\n",__func__, __LINE__);
+                return ret;
+        }
+
+        return snprintf(buf, PAGE_SIZE, "%d\n", connector->panel_event);
+}
 
 static DEVICE_ATTR_RW(status);
 static DEVICE_ATTR_RO(enabled);
 static DEVICE_ATTR_RO(dpms);
 static DEVICE_ATTR_RO(modes);
+static DEVICE_ATTR_RW(mipi_reg);
+static DEVICE_ATTR_RO(white_point_x);
+static DEVICE_ATTR_RO(white_point_y);
+static DEVICE_ATTR_RO(white_point_lv);
+static DEVICE_ATTR_RO(lcm_info);
+static DEVICE_ATTR_RO(panel_event);
 
 static struct attribute *connector_dev_attrs[] = {
 	&dev_attr_status.attr,
 	&dev_attr_enabled.attr,
 	&dev_attr_dpms.attr,
 	&dev_attr_modes.attr,
+	&dev_attr_mipi_reg.attr,
+	&dev_attr_white_point_x.attr,
+	&dev_attr_white_point_y.attr,
+	&dev_attr_white_point_lv.attr,
+	&dev_attr_lcm_info.attr,
+	&dev_attr_panel_event.attr,
 	NULL
 };
 

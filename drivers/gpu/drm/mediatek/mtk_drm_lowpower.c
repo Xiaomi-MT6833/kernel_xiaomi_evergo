@@ -56,8 +56,14 @@ static void mtk_drm_vdo_mode_enter_idle(struct drm_crtc *crtc)
 	}
 
 	comp = mtk_ddp_comp_request_output(mtk_crtc);
-	if (comp)
+	if (comp) {
 		mtk_ddp_comp_io_cmd(comp, handle, DSI_VFP_IDLE_MODE, NULL);
+		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_LFR)) {
+			int en = 0;
+
+			mtk_ddp_comp_io_cmd(comp, handle, DSI_LFR_SET, &en);
+		}
+	}
 
 	cmdq_pkt_flush(handle);
 	cmdq_pkt_destroy(handle);
@@ -89,8 +95,14 @@ static void mtk_drm_vdo_mode_leave_idle(struct drm_crtc *crtc)
 	}
 
 	comp = mtk_ddp_comp_request_output(mtk_crtc);
-	if (comp)
+	if (comp) {
 		mtk_ddp_comp_io_cmd(comp, handle, DSI_VFP_DEFAULT_MODE, NULL);
+		if (mtk_drm_helper_get_opt(priv->helper_opt, MTK_DRM_OPT_LFR)) {
+			int en = 1;
+
+			mtk_ddp_comp_io_cmd(comp, handle, DSI_LFR_SET, &en);
+		}
+	}
 
 	cmdq_pkt_flush(handle);
 	cmdq_pkt_destroy(handle);
@@ -555,7 +567,7 @@ static void mtk_drm_idlemgr_enable_crtc(struct drm_crtc *crtc)
 	/* 3. start trigger loop first to keep gce alive */
 	if (crtc_id == 0) {
 #if defined(CONFIG_MACH_MT6873) || defined(CONFIG_MACH_MT6853) \
-	|| defined(CONFIG_MACH_MT6833) || defined(CONFIG_MACH_MT6877)
+	|| defined(CONFIG_MACH_MT6833)
 		if (!mtk_crtc_is_frame_trigger_mode(crtc))
 			mtk_crtc_start_sodi_loop(crtc);
 #endif

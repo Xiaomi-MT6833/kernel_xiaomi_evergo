@@ -48,6 +48,7 @@ static LIST_HEAD(panel_list);
 void drm_panel_init(struct drm_panel *panel)
 {
 	INIT_LIST_HEAD(&panel->list);
+	BLOCKING_INIT_NOTIFIER_HEAD(&panel->nh);
 }
 EXPORT_SYMBOL(drm_panel_init);
 
@@ -142,8 +143,8 @@ struct drm_panel *of_drm_find_panel(const struct device_node *np)
 	struct drm_panel *panel;
 
 	mutex_lock(&panel_lock);
-
 	list_for_each_entry(panel, &panel_list, list) {
+		printk("nvt : %s 2, %s, %s ", __func__, (panel->dev->of_node)->full_name, np->full_name);
 		if (panel->dev->of_node == np) {
 			mutex_unlock(&panel_lock);
 			return panel;
@@ -155,6 +156,27 @@ struct drm_panel *of_drm_find_panel(const struct device_node *np)
 }
 EXPORT_SYMBOL(of_drm_find_panel);
 #endif
+
+int drm_panel_notifier_register(struct drm_panel *panel,
+	struct notifier_block *nb)
+{
+	return blocking_notifier_chain_register(&panel->nh, nb);
+}
+EXPORT_SYMBOL_GPL(drm_panel_notifier_register);
+
+int drm_panel_notifier_unregister(struct drm_panel *panel,
+	struct notifier_block *nb)
+{
+	return blocking_notifier_chain_unregister(&panel->nh, nb);
+}
+EXPORT_SYMBOL_GPL(drm_panel_notifier_unregister);
+
+int drm_panel_notifier_call_chain(struct drm_panel *panel,
+	unsigned long val, void *v)
+{
+	return blocking_notifier_call_chain(&panel->nh, val, v);
+}
+EXPORT_SYMBOL_GPL(drm_panel_notifier_call_chain);
 
 MODULE_AUTHOR("Thierry Reding <treding@nvidia.com>");
 MODULE_DESCRIPTION("DRM panel infrastructure");

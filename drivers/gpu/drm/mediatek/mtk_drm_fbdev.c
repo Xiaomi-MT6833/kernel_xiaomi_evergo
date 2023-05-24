@@ -33,6 +33,10 @@
 
 #define to_drm_private(x) container_of(x, struct mtk_drm_private, fb_helper)
 #define ALIGN_TO_32(x) ALIGN_TO(x, 32)
+/*bug651594 sijun.wt 20210510 add for hardware info begin*/
+#include "linux/hardware_info.h"
+extern char Lcm_name[HARDWARE_MAX_ITEM_LONGTH];
+/*bug651594 sijun.wt 20210510 add for hardware info end*/
 
 struct fb_info *debug_info;
 
@@ -280,6 +284,7 @@ int _parse_tag_videolfb(unsigned int *vramsize, phys_addr_t *fb_base,
 			*vramsize = videolfb_tag->vram;
 			*fb_base = videolfb_tag->fb_base;
 			*fps = videolfb_tag->fps;
+			strncpy(Lcm_name,videolfb_tag->lcmname,strlen(videolfb_tag->lcmname)+1);//bug651594 sijun.wt 20210510 add for hardware info
 			if (*fps == 0)
 				*fps = 6000;
 			return 0;

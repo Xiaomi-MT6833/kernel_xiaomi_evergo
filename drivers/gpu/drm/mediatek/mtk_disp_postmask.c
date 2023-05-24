@@ -127,6 +127,7 @@ struct mtk_disp_postmask {
 	unsigned int abnormal_cnt;
 };
 
+#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 static irqreturn_t mtk_postmask_irq_handler(int irq, void *dev_id)
 {
 	struct mtk_disp_postmask *priv = dev_id;
@@ -182,6 +183,7 @@ out:
 
 	return ret;
 }
+#endif
 
 static void mtk_postmask_config(struct mtk_ddp_comp *comp,
 				struct mtk_ddp_config *cfg,
@@ -499,7 +501,9 @@ static int mtk_disp_postmask_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 	struct mtk_disp_postmask *priv;
 	enum mtk_ddp_comp_id comp_id;
+#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 	int irq;
+#endif
 	int ret;
 
 	DDPINFO("%s+\n", __func__);
@@ -508,9 +512,11 @@ static int mtk_disp_postmask_probe(struct platform_device *pdev)
 	if (priv == NULL)
 		return -ENOMEM;
 
+#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 	irq = platform_get_irq(pdev, 0);
 	if (irq < 0)
 		return irq;
+#endif
 
 	comp_id = mtk_ddp_comp_get_id(dev->of_node, MTK_DISP_POSTMASK);
 	if ((int)comp_id < 0) {
@@ -526,7 +532,7 @@ static int mtk_disp_postmask_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, priv);
-
+#ifdef CONFIG_MTK_ROUND_CORNER_SUPPORT
 	ret = devm_request_irq(dev, irq, mtk_postmask_irq_handler,
 			       IRQF_TRIGGER_NONE | IRQF_SHARED, dev_name(dev),
 			       priv);
@@ -536,7 +542,7 @@ static int mtk_disp_postmask_probe(struct platform_device *pdev)
 				irq, ret, comp_id);
 		return ret;
 	}
-
+#endif
 	pm_runtime_enable(dev);
 
 	ret = component_add(dev, &mtk_disp_postmask_component_ops);

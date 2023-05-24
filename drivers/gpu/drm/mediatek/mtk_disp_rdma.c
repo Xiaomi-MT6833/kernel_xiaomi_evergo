@@ -34,6 +34,11 @@
 #include "mtk_layering_rule.h"
 #include "mtk_drm_trace.h"
 #include "swpm_me.h"
+#if defined(CONFIG_MACH_MT6877)
+#ifdef CONFIG_MEDIATEK_DRAMC
+#include <dramc.h>
+#endif
+#endif
 
 #define DISP_REG_RDMA_INT_ENABLE 0x0000
 #define DISP_REG_RDMA_INT_STATUS 0x0004
@@ -263,6 +268,7 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 {
 	struct mtk_disp_rdma *priv = dev_id;
 	struct mtk_ddp_comp *rdma = &priv->ddp_comp;
+	struct mtk_drm_crtc *mtk_crtc = rdma->mtk_crtc;
 	unsigned int val = 0;
 	unsigned int ret = 0;
 
@@ -318,6 +324,12 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 
 	if (val & (1 << 1)) {
 		DDPIRQ("[IRQ] %s: frame start!\n", mtk_dump_comp_str(rdma));
+#ifdef MTK_DRM_DELAY_PRESENT_FENCE_SOF
+		if (mtk_crtc) {
+			atomic_set(&mtk_crtc->pf_event, 1);
+			wake_up_interruptible(&mtk_crtc->present_fence_wq);
+		}
+#endif
 		mtk_drm_refresh_tag_start(&priv->ddp_comp);
 		MMPathTraceDRM(rdma);
 	}
@@ -363,6 +375,20 @@ static irqreturn_t mtk_disp_rdma_irq_handler(int irq, void *dev_id)
 	}
 	if (val & (1 << 5)) {
 		DDPIRQ("[IRQ] %s: target line!\n", mtk_dump_comp_str(rdma));
+		if (mtk_crtc) {
+			struct mtk_drm_private *drm_priv = NULL;
+
+			if (mtk_crtc->base.dev)
+				drm_priv =
+					mtk_crtc->base.dev->dev_private;
+			if (drm_priv && mtk_drm_helper_get_opt(
+				drm_priv->helper_opt,
+				MTK_DRM_OPT_SF_PF) &&
+				!mtk_crtc_is_frame_trigger_mode(&mtk_crtc->base)) {
+				atomic_set(&mtk_crtc->sf_pf_event, 1);
+				wake_up_interruptible(&mtk_crtc->sf_present_fence_wq);
+			}
+		}
 		if (rdma->mtk_crtc && rdma->mtk_crtc->esd_ctx &&
 			(!(val & (1 << 2)))) {
 			atomic_set(&rdma->mtk_crtc->esd_ctx->target_time, 1);
@@ -484,6 +510,11 @@ void mtk_rdma_cal_golden_setting(struct mtk_ddp_comp *comp,
 
 	unsigned int fill_rate = 0;	  /* 100 times */
 	unsigned long long consume_rate = 0; /* 100 times */
+#if defined(CONFIG_MACH_MT6877)
+#ifdef CONFIG_MEDIATEK_DRAMC
+	int ddr_type = mtk_dramc_get_ddr_type();
+#endif
+#endif
 
 	if (if_fps == 0) {
 		DDPPR_ERR("%s invalid vrefresh %u\n",
@@ -548,7 +579,19 @@ void mtk_rdma_cal_golden_setting(struct mtk_ddp_comp *comp,
 	gs[GS_RDMA_ULTRA_TH_HIGH] = gs[GS_RDMA_PRE_ULTRA_TH_LOW];
 	if (gsc->is_vdo_mode) {
 		gs[GS_RDMA_VALID_TH_BLOCK_ULTRA] = 0;
+#if defined(CONFIG_MACH_MT6877)
+#ifdef CONFIG_MEDIATEK_DRAMC
+		if (ddr_type == 0x6) {
+			DDPINFO("%s(%d) ddr_type is LP4:%d\n", __func__, __LINE__, ddr_type);
+			gs[GS_RDMA_VDE_BLOCK_ULTRA] = 1;
+		} else {
+			DDPINFO("%s(%d) ddr_type is LP5:%d\n", __func__, __LINE__, ddr_type);
+			gs[GS_RDMA_VDE_BLOCK_ULTRA] = 0;
+		}
+#endif
+#else
 		gs[GS_RDMA_VDE_BLOCK_ULTRA] = 1;
+#endif
 	} else {
 		gs[GS_RDMA_VALID_TH_BLOCK_ULTRA] = 1;
 		gs[GS_RDMA_VDE_BLOCK_ULTRA] = 0;

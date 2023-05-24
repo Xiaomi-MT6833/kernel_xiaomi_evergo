@@ -84,6 +84,7 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
              -I$(srctree)/drivers/misc/mediatek/smi/			\
              -I$(srctree)/drivers/misc/mediatek/mmp/			\
              -I$(srctree)/drivers/misc/mediatek/mmdvfs/			\
+             -I$(srctree)/drivers/misc/mediatek/pmic/			\
              -I$(srctree)/drivers/iommu/				\
              -I$(srctree)/drivers/devfreq/				\
              -I$(srctree)/drivers/gpu/drm/				\
@@ -94,7 +95,12 @@ ccflags-y += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)	\
 ifeq (y, $(filter y, $(CONFIG_MACH_MT6833)))
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/mt6833/include/mach/
 else
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6877)))
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/mt6877/include/mach/
+ccflags-y += -I$(srctree)/include/memory/mediatek/
+else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(MTK_PLATFORM)/include/mach/
+endif
 endif
 
 ccflags-$(CONFIG_MTK_CMDQ_MBOX_EXT) += -I$(srctree)/drivers/misc/mediatek/cmdq/mailbox
@@ -109,7 +115,7 @@ ccflags-y += -DDISP_MDP_COLOR_ON
 ccflags-y += -DCCORR_SUPPORT
 endif
 
-ifeq (y, $(filter y, $(CONFIG_MACH_MT6833)))
+ifeq (y, $(filter y, $(CONFIG_MACH_MT6833) $(CONFIG_MACH_MT6877)))
 ccflags-y += -DNOT_SUPPORT_CABC_HW
 ccflags-y += -DDISP_MDP_COLOR_ON
 ccflags-y += -DCCORR_SUPPORT

@@ -355,7 +355,7 @@ int vcu_ipi_register(struct platform_device *pdev,
 	unsigned int i = 0;
 
 	if (vcu == NULL) {
-		dev_err(&pdev->dev, "vcu device in not ready\n");
+		dev_info(&pdev->dev, "vcu device is not ready\n");
 		return -EPROBE_DEFER;
 	}
 
@@ -769,9 +769,19 @@ static void vcu_gce_flush_callback(struct cmdq_cb_data data)
 				vcu->gce_job_cnt[i][core_id].counter);
 	if (atomic_dec_and_test(&vcu->gce_job_cnt[i][core_id]) &&
 		vcu->gce_info[j].v4l2_ctx != NULL){
-		if (i == VCU_VENC)
+		if (i == VCU_VENC) {
 			venc_encode_unprepare(vcu->gce_info[j].v4l2_ctx,
 				buff->cmdq_buff.core_id, &vcu->flags[i]);
+#if defined(CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT)
+#if !(IS_ENABLED(CONFIG_MACH_MT6768) || IS_ENABLED(CONFIG_MACH_MT6779) ||\
+IS_ENABLED(CONFIG_MACH_MT6785))
+			if (buff->cmdq_buff.secure != 0)
+				cmdq_sec_mbox_switch_normal(vcu->clt_venc_sec[0]);
+#endif
+#endif
+			venc_unlock(vcu->gce_info[j].v4l2_ctx,
+				buff->cmdq_buff.core_id);
+		}
 	}
 	mutex_unlock(&vcu->vcu_gce_mutex[i]);
 
@@ -903,6 +913,21 @@ static int vcu_gce_cmd_flush(struct mtk_vcu *vcu,
 
 	time_check_start();
 	mutex_lock(&vcu->vcu_gce_mutex[i]);
+
+	if (buff.cmdq_buff.codec_type == VCU_VENC) {
+		int lock = -1;
+
+		while (lock != 0) {
+			lock = venc_lock(vcu->gce_info[j].v4l2_ctx, core_id,
+				(bool)buff.cmdq_buff.secure);
+			if (lock != 0) {
+				mutex_unlock(&vcu->vcu_gce_mutex[i]);
+				usleep_range(1000, 2000);
+				mutex_lock(&vcu->vcu_gce_mutex[i]);
+			}
+		}
+	}
+
 	if (atomic_read(&vcu->gce_job_cnt[i][core_id]) == 0 &&
 		vcu->gce_info[j].v4l2_ctx != NULL){
 		if (i == VCU_VENC) {
@@ -1972,15 +1997,9 @@ static long mtk_vcu_unlocked_compat_ioctl(struct file *file, unsigned int cmd,
 
 static int mtk_vcu_write(const char *val, const struct kernel_param *kp)
 {
-	long ret = -1;
-
 	if (vcu_ptr != NULL &&
 		vcu_ptr->vdec_log_info != NULL &&
 		val != NULL) {
-		ret = param_set_charp(val, kp);
-		if (ret != 0)
-			return -EINVAL;
-
 		memcpy(vcu_ptr->vdec_log_info->log_info,
 			val, strnlen(val, LOG_INFO_SIZE - 1) + 1);
 	} else
@@ -2010,7 +2029,6 @@ static int mtk_vcu_write(const char *val, const struct kernel_param *kp)
 
 static struct kernel_param_ops log_param_ops = {
 	.set = mtk_vcu_write,
-	.get = param_get_charp,
 };
 
 module_param_cb(test_info, &log_param_ops, &vcodec_param_string, 0644);
@@ -2043,13 +2061,13 @@ static int mtk_vcu_suspend(struct device *pDev)
 		pr_info("[VCU] %s fail due to videocodec activity\n", __func__);
 		return -EBUSY;
 	}
-	pr_info("[VCU] %s done\n", __func__);
+	pr_debug("[VCU] %s done\n", __func__);
 	return 0;
 }
 
 static int mtk_vcu_resume(struct device *pDev)
 {
-	pr_info("[VCU] %s done\n", __func__);
+	pr_debug("[VCU] %s done\n", __func__);
 	return 0;
 }
 
@@ -2067,7 +2085,7 @@ static int mtk_vcu_suspend_notifier(struct notifier_block *nb,
 {
 	int wait_cnt = 0;
 
-	pr_info("[VCU] %s ok action = %ld\n", __func__, action);
+	pr_debug("[VCU] %s ok action = %ld\n", __func__, action);
 	switch (action) {
 	case PM_SUSPEND_PREPARE:
 		vcu_ptr->is_entering_suspend = 1;

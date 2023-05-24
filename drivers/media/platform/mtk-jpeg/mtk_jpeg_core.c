@@ -244,9 +244,9 @@ void mtk_jpeg_unprepare_dvfs(void)
 
 void mtk_jpeg_start_dvfs(void)
 {
-	if (g_freq_steps[1] != 0) {
-		pr_info("highest freq 0x%x", g_freq_steps[1]);
-		pm_qos_update_request(&jpeg_qos_request,  g_freq_steps[1]);
+	if (g_freq_steps[0] != 0) {
+		pr_info("highest freq 0x%x", g_freq_steps[0]);
+		pm_qos_update_request(&jpeg_qos_request,  g_freq_steps[0]);
 	}
 }
 
@@ -2054,11 +2054,6 @@ static int mtk_jpeg_probe(struct platform_device *pdev)
 	if (ret)
 		pr_info("BSDMA read failed:%d\n", ret);
 
-
-	mtk_jpeg_prepare_bw_request(jpeg);
-
-	mtk_jpeg_prepare_dvfs();
-
 	ret = mtk_jpeg_clk_init(jpeg);
 	if (ret) {
 		dev_err(&pdev->dev, "Failed to init clk, err %d\n", ret);
@@ -2106,6 +2101,10 @@ static int mtk_jpeg_probe(struct platform_device *pdev)
 		v4l2_err(&jpeg->v4l2_dev, "Failed to register video device\n");
 		goto err_vfd_jpeg_register;
 	}
+
+	mtk_jpeg_prepare_bw_request(jpeg);
+
+	mtk_jpeg_prepare_dvfs();
 
 	video_set_drvdata(jpeg->vfd_jpeg, jpeg);
 	v4l2_info(&jpeg->v4l2_dev,

@@ -165,6 +165,12 @@ enum mtk_dec_param {
 	MTK_DEC_PARAM_OPERATING_RATE = (1 << 9)
 };
 
+enum venc_lock {
+	VENC_LOCK_NONE,
+	VENC_LOCK_NORMAL,
+	VENC_LOCK_SEC
+};
+
 struct mtk_dec_params {
 	unsigned int    decode_mode;
 	unsigned int    frame_size_width;
@@ -391,7 +397,6 @@ struct mtk_vcodec_ctx {
 	struct vb2_buffer *pend_src_buf;
 	wait_queue_head_t fm_wq;
 	int input_driven;
-	int user_lock_hw;
 	/* for user lock HW case release check */
 	int hw_locked[MTK_VDEC_HW_NUM];
 	int lock_abort;
@@ -463,6 +468,9 @@ struct mtk_vcodec_dev {
 	void __iomem *dec_reg_base[NUM_MAX_VDEC_REG_BASE];
 	void __iomem *enc_reg_base[NUM_MAX_VENC_REG_BASE];
 
+	bool dec_is_power_on[MTK_VDEC_HW_NUM];
+	spinlock_t dec_power_lock[MTK_VDEC_HW_NUM];
+
 	unsigned long id_counter;
 
 	struct workqueue_struct *decode_workqueue;
@@ -491,6 +499,7 @@ struct mtk_vcodec_dev {
 
 	int dec_cnt;
 	int enc_cnt;
+	enum venc_lock enc_hw_locked[MTK_VENC_HW_NUM];
 };
 
 static inline struct mtk_vcodec_ctx *fh_to_ctx(struct v4l2_fh *fh)

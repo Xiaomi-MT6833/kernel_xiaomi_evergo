@@ -3,6 +3,7 @@
  * Anonymous Shared Memory Subsystem, ashmem
  *
  * Copyright (C) 2008 Google, Inc.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * Robert Love <rlove@google.com>
  *

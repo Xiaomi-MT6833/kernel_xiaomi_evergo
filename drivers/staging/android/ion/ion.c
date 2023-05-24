@@ -755,7 +755,9 @@ struct ion_handle *ion_alloc(struct ion_client *client, size_t len,
 			 (unsigned long)client, (unsigned long)handle);
 
 #ifdef CONFIG_MTK_ION
+#ifdef ION_HISTORY_RECORD
 	ion_history_count_kick(true, len);
+#endif
 #endif
 
 	handle->dbg.user_ts = end;
@@ -794,7 +796,9 @@ void ion_free_nolock(struct ion_client *client,
 	}
 	ion_handle_put_nolock(handle);
 #ifdef CONFIG_MTK_ION
+#ifdef ION_HISTORY_RECORD
 	ion_history_count_kick(false, 0);
+#endif
 #endif
 }
 

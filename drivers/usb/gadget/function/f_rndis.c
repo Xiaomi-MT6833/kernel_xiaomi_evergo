@@ -77,7 +77,7 @@ module_param(rndis_dl_max_pkt_per_xfer, uint, 0644);
 MODULE_PARM_DESC(rndis_dl_max_pkt_per_xfer,
 	"Maximum packets per transfer for DL aggregation");
 
-static unsigned int rndis_ul_max_pkt_per_xfer = 1;
+static unsigned int rndis_ul_max_pkt_per_xfer = 10;
 module_param(rndis_ul_max_pkt_per_xfer, uint, 0644);
 MODULE_PARM_DESC(rndis_ul_max_pkt_per_xfer,
 	"Maximum packets per transfer for UL aggregation");
@@ -348,6 +348,7 @@ static struct usb_ss_ep_comp_descriptor ss_bulk_comp_desc = {
 	/* the following 2 values can be tweaked if necessary */
 	/* .bMaxBurst =		0, */
 	/* .bmAttributes =	0, */
+	.bMaxBurst =		4,
 };
 
 static struct usb_descriptor_header *eth_ss_function[] = {
@@ -554,10 +555,8 @@ static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 		if (buf->MaxTransferSize > 2048) {
 			rndis->port.multi_pkt_xfer = 1;
 			rndis->port.dl_max_transfer_len = buf->MaxTransferSize;
-			spin_unlock(&rndis_lock);
 			gether_update_dl_max_xfer_size(&rndis->port,
 					rndis->port.dl_max_transfer_len);
-			spin_lock(&rndis_lock);
 		} else
 			rndis->port.multi_pkt_xfer = 0;
 		pr_info("%s: MaxTransferSize: %d : Multi_pkt_txr: %s\n",

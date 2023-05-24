@@ -23,6 +23,7 @@
 
 #ifdef CONFIG_SND_SOC_SIA8109
 #include "../../codecs/sia81xx/sia81xx_common.h"
+#include "../../codecs/sia81xx/sia81xx_aux_dev_if.h"
 #endif
 
 /*
@@ -31,6 +32,7 @@
  * mt6833_mt6359_spk_amp_event()
  */
 #define EXT_SPK_AMP_W_NAME "Ext_Speaker_Amp"
+#define EXT_RCV_AMP_W_NAME "Ext_Reciver_Amp"
 
 static const char *const mt6833_spk_type_str[] = {MTK_SPK_NOT_SMARTPA_STR,
 						  MTK_SPK_RICHTEK_RT5509_STR,
@@ -51,6 +53,23 @@ static const struct soc_enum mt6833_spk_type_enum[] = {
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(mt6833_spk_i2s_type_str),
 			    mt6833_spk_i2s_type_str),
 };
+
+#if defined(CONFIG_SND_SOC_AW87XXX)
+enum {
+	AW87XXX_OFF_MODE = 0,
+	AW87XXX_MUSIC_MODE = 1,
+	AW87XXX_VOICE_MODE = 2,
+	AW87XXX_FM_MODE = 3,
+	AW87XXX_RCV_MODE = 4,
+	AW87XXX_MODE_MAX = 5,
+};
+enum {
+	AW87XXX_LEFT_CHANNEL = 0,
+	AW87XXX_RIRHT_CHANNEL = 1,
+};
+
+extern int aw87xxx_audio_scene_load(uint8_t mode, int32_t channel);
+#endif
 
 static int mt6833_spk_type_get(struct snd_kcontrol *kcontrol,
 			       struct snd_ctl_elem_value *ucontrol)
@@ -82,6 +101,32 @@ static int mt6833_spk_i2s_in_type_get(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int rcv_amp_mode;
+static const char *rcv_amp_type_str[] = {"SPEAKER_MODE", "RECIEVER_MODE"};
+static const struct soc_enum rcv_amp_type_enum =
+	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(rcv_amp_type_str), rcv_amp_type_str);
+
+static int mt6833_rcv_amp_mode_get(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	pr_info("%s() = %d\n", __func__, rcv_amp_mode);
+	ucontrol->value.integer.value[0] = rcv_amp_mode;
+	return 0;
+}
+
+static int mt6833_rcv_amp_mode_set(struct snd_kcontrol *kcontrol,
+				   struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+
+	if (ucontrol->value.enumerated.item[0] >= e->items)
+		return -EINVAL;
+
+	rcv_amp_mode = ucontrol->value.integer.value[0];
+	pr_info("%s() = %d\n", __func__, rcv_amp_mode);
+	return 0;
+}
+
 static int mt6833_mt6359_spk_amp_event(struct snd_soc_dapm_widget *w,
 				       struct snd_kcontrol *kcontrol,
 				       int event)
@@ -99,7 +144,7 @@ static int mt6833_mt6359_spk_amp_event(struct snd_soc_dapm_widget *w,
 #endif
 
 #ifdef CONFIG_SND_SOC_SIA8109
-		sia81xx_start();
+		//sia81xx_start();
 #endif
 		break;
 	case SND_SOC_DAPM_PRE_PMD:
@@ -109,8 +154,66 @@ static int mt6833_mt6359_spk_amp_event(struct snd_soc_dapm_widget *w,
 #endif
 
 #ifdef CONFIG_SND_SOC_SIA8109
-		sia81xx_stop();
+		//sia81xx_stop();
 #endif
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+};
+
+static int mt6833_mt6359_rcv_amp_event(struct snd_soc_dapm_widget *w,
+				       struct snd_kcontrol *kcontrol,
+				       int event)
+{
+	struct snd_soc_dapm_context *dapm = w->dapm;
+	struct snd_soc_card *card = dapm->card;
+
+	dev_info(card->dev, "%s(), event %d\n", __func__, event);
+
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		/* spk amp on control */
+		if (rcv_amp_mode) {
+				/* rcv amp on control */
+			#ifdef CONFIG_SND_SOC_AW87339
+				aw87339_spk_enable_set(true);
+			#endif
+			#if defined(CONFIG_SND_SOC_AW87XXX)
+			pr_info("%s(), aw87389_audio_drcv()\n", __func__);
+			aw87xxx_audio_scene_load(AW87XXX_RCV_MODE, AW87XXX_LEFT_CHANNEL);
+			#endif
+			#ifdef CONFIG_SND_SOC_SIA8109
+				//sia81xx_start();
+			#endif
+		} else {
+				/* spk amp on control */
+			#ifdef CONFIG_SND_SOC_AW87339
+				aw87339_spk_enable_set(true);
+			#endif
+			#if defined(CONFIG_SND_SOC_AW87XXX)
+			pr_info("%s(), aw87389_audio_dspk()\n", __func__);
+			aw87xxx_audio_scene_load(AW87XXX_MUSIC_MODE, AW87XXX_LEFT_CHANNEL);
+			#endif
+			#ifdef CONFIG_SND_SOC_SIA8109
+				//sia81xx_start();
+			#endif
+		}
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		/* spk amp off control */
+		#ifdef CONFIG_SND_SOC_AW87339
+			aw87339_spk_enable_set(false);
+		#endif
+		#if defined(CONFIG_SND_SOC_AW87XXX)
+		pr_info("%s(), aw87389_audio_off()\n", __func__);
+		aw87xxx_audio_scene_load(AW87XXX_OFF_MODE, AW87XXX_LEFT_CHANNEL);
+		#endif
+		#ifdef CONFIG_SND_SOC_SIA8109
+			//sia81xx_stop();
+		#endif
 		break;
 	default:
 		break;
@@ -121,16 +224,21 @@ static int mt6833_mt6359_spk_amp_event(struct snd_soc_dapm_widget *w,
 
 static const struct snd_soc_dapm_widget mt6833_mt6359_widgets[] = {
 	SND_SOC_DAPM_SPK(EXT_SPK_AMP_W_NAME, mt6833_mt6359_spk_amp_event),
+	SND_SOC_DAPM_SPK(EXT_RCV_AMP_W_NAME, mt6833_mt6359_rcv_amp_event),
 };
 
 static const struct snd_soc_dapm_route mt6833_mt6359_routes[] = {
 	{EXT_SPK_AMP_W_NAME, NULL, "LINEOUT L"},
+	{EXT_RCV_AMP_W_NAME, NULL, "Receiver"},
 	{EXT_SPK_AMP_W_NAME, NULL, "Headphone L Ext Spk Amp"},
-	{EXT_SPK_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
+	{EXT_RCV_AMP_W_NAME, NULL, "Headphone R Ext Spk Amp"},
 };
 
 static const struct snd_kcontrol_new mt6833_mt6359_controls[] = {
 	SOC_DAPM_PIN_SWITCH(EXT_SPK_AMP_W_NAME),
+	SOC_DAPM_PIN_SWITCH(EXT_RCV_AMP_W_NAME),
+	SOC_ENUM_EXT("RCV_AMP_MODE", rcv_amp_type_enum,
+		     mt6833_rcv_amp_mode_get, mt6833_rcv_amp_mode_set),
 	SOC_ENUM_EXT("MTK_SPK_TYPE_GET", mt6833_spk_type_enum[0],
 		     mt6833_spk_type_get, NULL),
 	SOC_ENUM_EXT("MTK_SPK_I2S_OUT_TYPE_GET", mt6833_spk_type_enum[1],
@@ -328,7 +436,7 @@ static int mt6833_mt6359_init(struct snd_soc_pcm_runtime *rtd)
 	struct mt6359_codec_ops ops;
 	struct mtk_base_afe *afe = snd_soc_platform_get_drvdata(rtd->platform);
 	struct mt6833_afe_private *afe_priv = afe->platform_priv;
-	struct snd_soc_dapm_context *dapm = &rtd->card->dapm;
+//	struct snd_soc_dapm_context *dapm = &rtd->card->dapm;
 
 	ops.enable_dc_compensation = mt6833_enable_dc_compensation;
 	ops.set_lch_dc_compensation = mt6833_set_lch_dc_compensation;
@@ -346,7 +454,7 @@ static int mt6833_mt6359_init(struct snd_soc_pcm_runtime *rtd)
 		mt6833_mt6359_mtkaif_calibration(rtd);
 
 	/* disable ext amp connection */
-	snd_soc_dapm_disable_pin(dapm, EXT_SPK_AMP_W_NAME);
+//	snd_soc_dapm_disable_pin(dapm, EXT_SPK_AMP_W_NAME);
 
 	return 0;
 }
@@ -988,6 +1096,16 @@ static struct snd_soc_dai_link mt6833_mt6359_dai_links[] = {
 		.codec_dai_name = "snd-soc-dummy-dai",
 	},
 #endif
+#if defined(CONFIG_MTK_ULTRASND_PROXIMITY)
+       {
+               .name = "SCP_ULTRA_Playback",
+               .stream_name = "SCP_ULTRA_Playback",
+               .cpu_dai_name = "snd-soc-dummy-dai",
+               .platform_name = "snd_scp_ultra",
+               .codec_name = "snd-soc-dummy",
+               .codec_dai_name = "snd-soc-dummy-dai",
+       },
+#endif
 };
 
 static struct snd_soc_card mt6833_mt6359_soc_card = {
@@ -1085,6 +1203,8 @@ static int mt6833_mt6359_dev_probe(struct platform_device *pdev)
 	}
 
 	card->dev = &pdev->dev;
+
+	ret = soc_aux_init_only_sia81xx(pdev, card);
 
 	dev_info(&pdev->dev, "%s(), devm_snd_soc_register_card\n", __func__);
 

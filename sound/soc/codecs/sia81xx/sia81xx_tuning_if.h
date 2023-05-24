@@ -15,6 +15,9 @@
 #ifndef _SIA81XX_TUNING_IF_H
 #define _SIA81XX_TUNING_IF_H
 
+#define SIXTH_SIA81XX_RX_MODULE			(0x1000E900)/* module id */
+#define SIXTH_SIA81XX_RX_ENABLE			(0x1000EA01)/* parameter id */
+
 struct sia81xx_cal_opt {
 	int (*init)(void);
 	void (*exit)(void);

@@ -498,6 +498,8 @@ obj-$(CONFIG_SND_SOC_RT5512)	+= snd-soc-rt5512.o
 obj-$(CONFIG_SND_SOC_MT6660)	+= snd-soc-mt6660.o
 obj-$(CONFIG_SND_SOC_AW87339)	+= aw87339/
 obj-$(CONFIG_SND_SOC_SIA8109)   += sia81xx/
+obj-$(CONFIG_SND_SOC_AW87XXX)   += aw87xxx/
+obj-$(CONFIG_SND_SOC_AA012)     += aa012/
 
 ifeq ($(CONFIG_SND_SOC_MT6358),y)
   MTK_PLATFORM := $(subst ",,$(CONFIG_MTK_PLATFORM))

@@ -12,27 +12,26 @@ snd-soc-sia81xx-objs := \
 		sia8101_regs.o \
 		sia8108_regs.o \
 		sia8109_regs.o \
+		sia8152_regs.o \
+		sia8152s_regs.o \
+		sia8159_regs.o \
 		sia81xx_timer_task.o \
-
+		
 ifeq ($(EN_SIA81XX_TUNING),y)
-
-ccflags-y += -DSIA81XX_TUNING
-
+EXTRA_CFLAGS += -DSIA81XX_TUNING
 snd-soc-sia81xx-objs += sia81xx_socket.o
+endif
 
 ifeq ($(TUNING_PLATFORM),qcom)
 snd-soc-sia81xx-objs += sia81xx_afe.o
 endif
 
 ifeq ($(TUNING_PLATFORM),mtk)
-ccflags-y += -DVENDOR_EDIT
 snd-soc-sia81xx-objs += sia81xx_tuning_if_dev.o
 endif
 
-endif
-
 ifeq ($(COMPILE_TO_MODULE),y)
-ccflags-y += -DSIA81XX_COMPILE_TO_MODULE
+EXTRA_CFLAGS += -DSIA81XX_COMPILE_TO_MODULE
 obj-m += snd-soc-sia81xx.o
 else
 obj-y += snd-soc-sia81xx.o

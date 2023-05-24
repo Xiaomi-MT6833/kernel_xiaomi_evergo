@@ -2,6 +2,7 @@
  * soc-jack.c  --  ALSA SoC jack handling
  *
  * Copyright 2008 Wolfson Microelectronics PLC.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * Author: Mark Brown <broonie@opensource.wolfsonmicro.com>
  *

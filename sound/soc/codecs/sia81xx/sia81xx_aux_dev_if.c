@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/version.h>
 
 #include <sound/core.h>
 #include <sound/soc.h>
@@ -142,22 +143,67 @@ int soc_sia81xx_init(
 		}
 		
 		snprintf(aux_dev_name, strlen("sia81xx.%d"), "sia81xx.%d", i);
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(5,3,18))
+		aux_dev[i].dlc.name = (const char *)aux_dev_name;
+		aux_dev[i].dlc.dai_name = NULL;
+		aux_dev[i].dlc.of_node = dev_of_node;
+#else
 		aux_dev[i].name = (const char *)aux_dev_name;
 		aux_dev[i].codec_name = NULL;
 		aux_dev[i].codec_of_node = dev_of_node;
+#endif
 		aux_dev[i].init = NULL;
 
 		codec_conf[i].dev_name = NULL;
 		codec_conf[i].name_prefix = dev_name_prefix;
 		codec_conf[i].of_node = dev_of_node;
 
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(5,3,18))
+		pr_debug("[debug][%s] : aux_dev = %s \r\n", 
+			__func__, aux_dev[i].dlc.name);
+#else
 		pr_debug("[debug][%s] : aux_dev = %s \r\n", 
 			__func__, aux_dev[i].name);
+#endif
 	}
 
 	return 0;
 }
 EXPORT_SYMBOL(soc_sia81xx_init);
+
+int soc_sia81xx_deinit(
+	struct platform_device *pdev, 
+	struct snd_soc_aux_dev *aux_dev, 
+	u32 aux_num, 
+	struct snd_soc_codec_conf *codec_conf, 
+	u32 conf_num)
+{
+	int i = 0;
+	
+	if(NULL == pdev) {
+		pr_err("[  err][%s] : NULL == pdev \r\n", __func__);
+		return -EINVAL;
+	}
+
+	if((NULL != aux_dev) && (aux_num > 0)) {
+		for(i = 0; i < aux_num; i ++) {
+#if (LINUX_VERSION_CODE > KERNEL_VERSION(5,3,18))
+			if(NULL != aux_dev[i].dlc.name) {
+				devm_kfree(&pdev->dev, (char *)aux_dev[i].dlc.name);
+				aux_dev[i].dlc.name = NULL;
+			}
+#else
+			if(NULL != aux_dev[i].name) {
+				devm_kfree(&pdev->dev, (char *)aux_dev[i].name);
+				aux_dev[i].name = NULL;
+			}
+#endif
+		}
+	}
+
+	return 0;
+}
+EXPORT_SYMBOL(soc_sia81xx_deinit);
 
 int soc_aux_init_only_sia81xx(
 	struct platform_device *pdev, 
@@ -171,7 +217,7 @@ int soc_aux_init_only_sia81xx(
 	aux_num = soc_sia81xx_get_aux_num(pdev);
 	conf_num = soc_sia81xx_get_codec_conf_num(pdev);
 
-	if((aux_num != conf_num) || (0 == aux_num)) {
+	if((aux_num != conf_num) || (0 == aux_num) || (NULL == card->dev)) {
 		pr_err("[  err][%s] : aux_num = %u, conf_num= %u !!! \r\n", 
 			__func__, aux_num, conf_num);
 		return -EINVAL;
@@ -207,5 +253,42 @@ int soc_aux_init_only_sia81xx(
 }
 EXPORT_SYMBOL(soc_aux_init_only_sia81xx);
 
+int soc_aux_deinit_only_sia81xx(
+	struct platform_device *pdev, 
+	struct snd_soc_card *card)
+{
+	if(NULL == pdev) {
+		pr_err("[  err][%s] : NULL == pdev \r\n", __func__);
+		return -EINVAL;
+	}
+
+	if(NULL == card) {
+		pr_err("[  err][%s] : NULL == card \r\n", __func__);
+		return -EINVAL;
+	}
+
+	soc_sia81xx_deinit(
+		pdev, 
+		card->aux_dev, 
+		card->num_aux_devs, 
+		card->codec_conf, 
+		card->num_configs);
+
+	if(NULL != card->aux_dev) {
+		devm_kfree(&pdev->dev, card->aux_dev);
+		card->aux_dev = NULL;
+	}
+
+	if(NULL != card->codec_conf) {
+		devm_kfree(&pdev->dev, card->codec_conf);
+		card->codec_conf = NULL;
+	}
+
+	card->num_aux_devs = 0;
+	card->num_configs = 0;
+
+	return 0;
+}
+EXPORT_SYMBOL(soc_aux_deinit_only_sia81xx);
 
 

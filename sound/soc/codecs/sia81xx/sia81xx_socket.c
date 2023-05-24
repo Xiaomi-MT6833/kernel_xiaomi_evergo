@@ -26,6 +26,10 @@
 #include "sia81xx_tuning_if.h"
 #include "sia81xx_socket.h"
 
+#ifndef SO_RCVTIMEO
+#define SO_RCVTIMEO SO_RCVTIMEO_NEW
+#endif
+
 #define SOCK_PORT_NUM		(5678)
 #define RECV_WATI_TIME_MS	(10)
 #define MAX_CAL_MAP_NUM		(16)
@@ -206,7 +210,7 @@ static int sia81xx_sock_proc(
 	
 	cal = (struct sia81xx_cal_packet *)buf;
 	if(CAL_PACKET_LEN(cal) > max_len) {
-		pr_info("[  err][%s] %s: payload_size = %u, max_len = %d \r\n",
+		pr_err("[  err][%s] %s: payload_size = %u, max_len = %d \r\n",
 			LOG_FLAG, __func__, cal->payload_size, max_len);
 	}
 

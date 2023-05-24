@@ -155,6 +155,8 @@ int get_dspscene_by_dspdaiid(int id)
 		return TASK_SCENE_KTV;
 	case AUDIO_TASK_CAPTURE_RAW_ID:
 		return TASK_SCENE_CAPTURE_RAW;
+	case AUDIO_TASK_FM_ADSP_ID:
+		return TASK_SCENE_FM_ADSP;
 	default:
 		pr_warn("%s() err\n", __func__);
 		return -1;
@@ -191,6 +193,8 @@ int get_dspdaiid_by_dspscene(int dspscene)
 		return AUDIO_TASK_KTV_ID;
 	case TASK_SCENE_CAPTURE_RAW:
 		return AUDIO_TASK_CAPTURE_RAW_ID;
+	case TASK_SCENE_FM_ADSP:
+		return AUDIO_TASK_FM_ADSP_ID;
 	default:
 		pr_info("%s() err dspscene=%d\n", __func__, dspscene);
 		return -1;
@@ -255,6 +259,8 @@ int get_dsp_task_id_from_str(const char *task_name)
 		ret = AUDIO_TASK_CALL_FINAL_ID;
 	else if (strstr(task_name, "ktv"))
 		ret = AUDIO_TASK_KTV_ID;
+	else if (strstr(task_name, "fm"))
+		ret = AUDIO_TASK_FM_ADSP_ID;
 	else if (strstr(task_name, "offload"))
 		ret = AUDIO_TASK_OFFLOAD_ID;
 	else if (strstr(task_name, "capture"))
@@ -505,6 +511,7 @@ static int mtk_audio_dsp_event_receive(
 {
 	switch (event) {
 	case ADSP_EVENT_STOP:
+		mtk_audio_set_adsp_reset_status(true);
 		break;
 	case ADSP_EVENT_READY:
 		mtk_reinit_adsp();
@@ -527,5 +534,47 @@ int mtk_audio_register_notify(void)
 	adsp_register_notify(&mtk_audio_dsp_notifier);
 #endif
 	return 0;
+}
+
+int mtk_audio_set_adsp_reset_status(int status)
+{
+	struct mtk_base_dsp *dsp = NULL;
+
+	dsp = get_dsp_base();
+
+	if (dsp == NULL) {
+		pr_info("%s dsp == NULL\n", __func__);
+		return -1;
+	}
+
+	dsp->adsp_reset = status;
+	pr_info("%s adsp_reset[%d]\n", __func__, dsp->adsp_reset);
+
+	return 0;
+}
+
+/* read and clear*/
+bool mtk_audio_get_adsp_reset_status(void)
+{
+	struct mtk_base_dsp *dsp = NULL;
+	bool ret = false;
+
+	dsp = get_dsp_base();
+
+	if (dsp == NULL) {
+		pr_info("%s dsp == NULL\n", __func__);
+		return -1;
+	}
+
+	if (dsp->adsp_reset)
+		ret = true;
+	else
+		ret = false;
+
+	dsp->adsp_reset = false;
+
+	pr_info("%s ret[%d] dsp->adsp_reset[%d]\n", __func__, ret, dsp->adsp_reset);
+
+	return ret;
 }
 

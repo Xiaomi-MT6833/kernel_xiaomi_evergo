@@ -32,6 +32,7 @@
 #define SIA8109_REG_CHIP_ID				(0x41)
 
 #define SIA8109_CHIP_ID_V0_1			(0x09)
+#define SIA8109_CHIP_ID_V1				(0x9B)
 
 extern const struct regmap_config sia8109_regmap_config;
 extern const struct sia81xx_reg_default_val sia8109_reg_default_val;

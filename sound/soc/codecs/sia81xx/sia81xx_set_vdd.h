@@ -15,6 +15,13 @@
 #ifndef _SIA81XX_SET_VDD_H
 #define _SIA81XX_SET_VDD_H
 
+#include <linux/regmap.h>
+
+#define SIA81XX_AUTO_VDD_EN_SET(en)		((en) & 0x1)
+#define SIA81XX_AUTO_VDD_EN_GET(en)		((en) & 0x1)
+#define SIA81XX_AUTO_PVDD_EN_SET(en)	(((en) & 0x1) << 1)
+#define SIA81XX_AUTO_PVDD_EN_GET(en)	(((en) >> 1) & 0x1)
+
 void sia81xx_set_auto_set_vdd_work_state(
 	uint32_t timer_task_hdl, 
 	uint32_t channel_num, 
@@ -22,7 +29,9 @@ void sia81xx_set_auto_set_vdd_work_state(
 
 int sia81xx_auto_set_vdd_probe(
 	uint32_t timer_task_hdl, 
-	uint32_t channel_num, 
+	uint32_t chip_type,
+	uint32_t channel_num,
+	struct regmap *regmap,
 	uint32_t cal_id, 
 	uint32_t state);
 

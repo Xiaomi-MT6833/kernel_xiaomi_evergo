@@ -132,7 +132,8 @@ static int sia81xx_apr_cmd_memory_map(SIA81XX_AFE *afe);
 static int afe_port_to_apr_port(
 	uint16_t afe_port)
 {
-	return afe_port % APR_MAX_PORTS;
+	/* range: 0x10 ~ APR_MAX_PORTS£¬ to avoid the port : 0x00 */
+	return (afe_port % (APR_MAX_PORTS - 0x10)) + 0x10;
 }
 
 static int sia81xx_fill_apr_hdr(
@@ -185,23 +186,21 @@ static int32_t sia81xx_afe_callback(
 
 	/* priv must a SIA81XX_AFE type pointer */
 	afe = (SIA81XX_AFE *)priv;
-/*	
-	pr_debug("[debug][%s] %s[0]: src port : 0x%04x, des port : 0x%04x, "
-		"des srv : 0x%04x \r\n ",
-		LOG_FLAG, __func__, data->src_port, data->dest_port, data->dest_svc);
-	pr_debug("[debug][%s] %s[1]: afe port : 0x%08x, token : 0x%08x, "
-		"opcode : 0x%08x, payload size : %d \r\n", 
-		LOG_FLAG, __func__, afe->afe_port_id, data->token, 
-		data->opcode, data->payload_size);
-*/
-	if (atomic_read(&afe->state) != 1) {
-		pr_err("[  err][%s] %s: error afe state \r\n", 
-			LOG_FLAG, __func__);
-		return -EINVAL;
+
+	if(RESET_EVENTS == data->opcode) {
+		pr_info("[ info][%s] %s: RESET_EVENTS, event : %d !! \r\n", 
+			LOG_FLAG, __func__, (int)data->reset_event);
+		
+		afe->cal_block.dsp_mmap_handle = 0;
+				
+		if (afe->apr) {
+			apr_reset(afe->apr);
+			atomic_set(&afe->state, 0);
+			afe->apr = NULL;
+		}
 	}
 
 	switch(data->opcode) {
-
 		case AFE_SERVICE_CMDRSP_SHARED_MEM_MAP_REGIONS: 
 		{			
 			struct afe_service_cmdrsp_shared_mem_map_regions *payload = NULL;
@@ -221,16 +220,14 @@ static int32_t sia81xx_afe_callback(
 			wake_up(&afe->wait);
 			
 			break;
-		}
-				
+		}		
 		case AFE_PORT_CMDRSP_GET_PARAM_V2: 
 		{
 			atomic_set(&afe->state, 0);
 			wake_up(&afe->wait);
 			
 			break;
-		}
-		
+		}	
 		case APR_BASIC_RSP_RESULT: 
 		{
 			uint32_t *payload = NULL;
@@ -251,7 +248,6 @@ static int32_t sia81xx_afe_callback(
 					
 					break;
 				}
-				
 				case AFE_SERVICE_CMD_SHARED_MEM_UNMAP_REGIONS :
 				{
 					afe->cal_block.dsp_mmap_handle = 0;
@@ -261,7 +257,6 @@ static int32_t sia81xx_afe_callback(
 					
 					break;
 				}
-
 				default : 
 				{
 					pr_err("[  err][%s] %s: unknow payload[0] = 0x%08x "
@@ -273,7 +268,6 @@ static int32_t sia81xx_afe_callback(
 			
 			break;
 		}
-		
 		default :
 		{
 			pr_err("[  err][%s] %s: invalid opcode = 0x%08x \r\n", 
@@ -676,7 +670,13 @@ int sia81xx_afe_send(
 	SIA81XX_AFE *afe = (SIA81XX_AFE *)afe_handle;
 
 	if(NULL == afe) 
-		return -1;
+		return -EINVAL;
+
+	if(APR_SUBSYS_LOADED != apr_get_q6_state()) {
+		pr_err("[  err][%s] %s: q6_state : %u \r\n", 
+			LOG_FLAG, __func__, (unsigned int)apr_get_q6_state());
+		return -EINVAL;
+	}
 
 	mutex_lock(&afe->afe_lock);
 
@@ -780,7 +780,13 @@ int sia81xx_afe_read(
 	SIA81XX_AFE *afe = (SIA81XX_AFE *)afe_handle;
 
 	if(NULL == afe) 
-		return -1;
+		return -EINVAL;
+
+	if(APR_SUBSYS_LOADED != apr_get_q6_state()) {
+		pr_err("[  err][%s] %s: q6_state : %u \r\n", 
+			LOG_FLAG, __func__, (unsigned int)apr_get_q6_state());
+		return -EINVAL;
+	}
 	
 	mutex_lock(&afe->afe_lock);
 	
@@ -890,12 +896,14 @@ err:
 	return ret;
 }
 
-
-
 unsigned long sia81xx_afe_open(
 	uint32_t afe_prot_id) {
 
 	SIA81XX_AFE *afe;
+
+	/* when open afe, maybe q6 has not start, 
+	 * so must be considered this case.
+	 * 0 == apr_get_q6_state() */
 
 	afe = find_sia81xx_afe_list(afe_prot_id);
 	if(NULL != afe)
@@ -969,7 +977,7 @@ int sia81xx_afe_close(
 	}
 #else
 	if((NULL != afe->cal_block.ion_client) || 
-		(NULL != afe->cal_block.ion_client)) {
+		(NULL != afe->cal_block.ion_handle)) {
 		
 		ret = msm_audio_ion_free(
 			afe->cal_block.ion_client, afe->cal_block.ion_handle);
@@ -1018,7 +1026,6 @@ static void sia81xx_afe_exit(void) {
 		LOG_FLAG, __func__);
 }
 
-
 struct sia81xx_cal_opt tuning_if_opt = {
 	.init = sia81xx_afe_init,
 	.exit = sia81xx_afe_exit,
@@ -1027,6 +1034,5 @@ struct sia81xx_cal_opt tuning_if_opt = {
 	.read = sia81xx_afe_read,
 	.write = sia81xx_afe_send
 };
-
 
 

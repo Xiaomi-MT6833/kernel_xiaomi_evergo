@@ -12,7 +12,7 @@
  */
 
 #define DEBUG
-#define LOG_FLAG	"gift_tuning"
+#define LOG_FLAG	"sia81xx_tuning"
 
 
 #include <linux/kernel.h>
@@ -26,14 +26,18 @@
 #include <linux/cdev.h>
 #include <linux/delay.h>
 #include <linux/uaccess.h>
+#include <asm/uaccess.h>
 #include "sia81xx_tuning_if.h"
 
 
 #define DEVICE_NAME "sia81xx_tuning_if"
 
-#define TIMEOUT_MS				(200)
+#define TIMEOUT_MS				(200)	// longer than sixth_tuning thread sleep
 #define MAX_CMD_LEN				(4096)
-#define MAX_FILE_MAP_NUM		(16)
+#define MAX_FILE_MAP_NUM		(4)
+
+//#define TUNING_CAL_ID_DUMMY		(0x02)	// only one tuning instance supported, use dummy cal_id instead.
+#define TUNING_FD_DUMMY			((struct file *)0xff)	// only one tuning instance supported, use dummy filp instead.
 
 /* same as audio_task.h file in android project */
 enum {
@@ -89,7 +93,6 @@ struct cal_module_unit {
 };
 
 struct cal_module_unit cal_module_table[MAX_FILE_MAP_NUM];
-
 
 
 static struct cal_module_unit *is_cal_id_exist(uint32_t cal_id)
@@ -150,14 +153,18 @@ static int record_cal_module(struct file *filp,
 	pr_debug("[debug][%s] %s: cal_id = 0x%08x, module_id = 0x%08x \r\n", 
 		LOG_FLAG, __func__, cal_id, module_id);
 
-	module->fp= filp;
+	spin_lock_init(&module->lock);
+
+	//spin_lock(&module->lock);
+	
+	module->fp = filp;
 	module->cal_id = cal_id;
 	module->module_id = module_id;
 	atomic_set(&module->state, MODULE_STATE_IDLE);
 	if(NULL == module->cmd)
-		module->cmd = (struct dev_comm_data *)kmalloc(MAX_CMD_LEN, GFP_KERNEL);
+		module->cmd = (struct dev_comm_data *)kzalloc(MAX_CMD_LEN, GFP_KERNEL);
 	
-	spin_lock_init(&module->lock);
+	//spin_unlock(&module->lock);
 
 	return 0;
 }
@@ -166,7 +173,7 @@ static void delete_cal_module(struct file *filp)
 {
 	struct cal_module_unit *module = NULL;
 
-	module = is_file_exist(filp);
+	module = is_file_exist(TUNING_FD_DUMMY);
 	if(NULL == module)
 		return ;
 
@@ -251,17 +258,31 @@ static uint32_t get_cal_module_param_opt(struct cal_module_unit *module)
 
 static unsigned long sia81xx_tuning_if_dev_type_open(uint32_t cal_id)
 {
+	int ret = 0;
 	struct cal_module_unit *module = NULL;
 
-	module = is_cal_id_exist(cal_id);
-	if(NULL == module)
+	if(0 != (ret = record_cal_module(
+			TUNING_FD_DUMMY, cal_id, SIXTH_SIA81XX_RX_MODULE))) {
+		pr_err("[  err][%s] %s: err !!record_cal_module ret = %d, "
+			"cal_id = %u \r\n", 
+			LOG_FLAG, __func__, ret, cal_id);
 		return 0;
+	}
+
+	module = is_cal_id_exist(cal_id);
+	if(NULL == module) {
+		pr_err("[  err][%s] %s: cal_id not exist \r\n", 
+			LOG_FLAG, __func__);
+		return 0;
+	}
 
 	return (unsigned long)module;
 }
 
 static int sia81xx_tuning_if_dev_type_close(unsigned long handle)
 {
+	delete_cal_module(TUNING_FD_DUMMY);
+	
 	return 0;
 }
 
@@ -396,7 +417,7 @@ static ssize_t sia81xx_tuning_if_dev_write(struct file *fp,
 
 	pr_debug("[debug][%s] %s: run !! \r\n", LOG_FLAG, __func__);
 
-	module = is_file_exist(fp);
+	module = is_file_exist(TUNING_FD_DUMMY);
 	if(NULL == module)
 		return -ENOENT;
 
@@ -416,6 +437,7 @@ static long sia81xx_tuning_if_dev_unlocked_ioctl(struct file *fp,
 	switch(cmd) {
 		case CMD_SIA81XX_TUNING_IF_ADD_CAL_ID :
 		{
+#if 0
 			uint32_t *args;
 			uint32_t cal_id, module_id ;
 			int ret = 0;
@@ -433,13 +455,13 @@ static long sia81xx_tuning_if_dev_unlocked_ioctl(struct file *fp,
 					"cal_id = %u \r\n", 
 					LOG_FLAG, __func__, ret, cal_id);
 			}
-			
+#endif
 			break;
 		}
 		
 		case CMD_SIA81XX_TUNING_IF_RM_CAL_ID :
 		{
-			delete_cal_module(fp);
+			//delete_cal_module(fp);
 			
 			break;
 		}
@@ -448,7 +470,7 @@ static long sia81xx_tuning_if_dev_unlocked_ioctl(struct file *fp,
 		{
 			struct cal_module_unit *module = NULL;
 
-			module = is_file_exist(fp);
+			module = is_file_exist(TUNING_FD_DUMMY);
 			if(NULL == module)
 				return -ENOENT;
 
@@ -494,7 +516,7 @@ static int sia81xx_tuning_if_dev_close(struct inode *inode, struct file *fp)
 {
 	pr_info("[ info][%s] %s: run !! \r\n", LOG_FLAG, __func__);
 
-	delete_cal_module(fp);
+	//delete_cal_module(fp);
 	
 	return 0 ;
 }
@@ -571,7 +593,4 @@ struct sia81xx_cal_opt tuning_if_opt = {
 	.read = sia81xx_tuning_if_dev_type_read,
 	.write = sia81xx_tuning_if_dev_type_write,
 };
-
-
-
 

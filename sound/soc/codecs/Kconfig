@@ -1199,6 +1199,21 @@ config SND_SOC_SIA8109
 	  amplifier. It is a speaker which connect with MTK
 	  PMIC device which has no speaker protection.
 
+config SND_SOC_AW87XXX
+       tristate "SoC Audio for awinic AW87XXX Smart K PA"
+       depends on I2C
+       help
+         This option enables support for AW87XXX Smart K PA.
+
+config SND_SOC_AA012
+	tristate "Support AA012 driver"
+	depends on I2C
+	help
+	  This option enables support for AA012 boards.
+	  Speaker amp use NXP TFA9874 codec,
+	  USB headset use fsa44xx codec,
+	  This only using on special project phone.
+
 config SND_SOC_LM4857
 	tristate
 

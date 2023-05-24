@@ -13,16 +13,21 @@
 
 
 #define DEBUG
-#define LOG_FLAG	"sia8101_set_vdd"
+#define LOG_FLAG	"sia81xx_set_vdd"
 
 
 #include <linux/version.h>
 #include <linux/power_supply.h>
+#include <linux/delay.h>
+
 #include "sia81xx_common.h"
 #include "sia81xx_tuning_if.h"
 #include "sia81xx_socket.h"
 #include "sia81xx_timer_task.h"
+#include "sia81xx_regmap.h"
 #include "sia81xx_set_vdd.h"
+
+#define SIXTH_CORE_V2_0
 
 #define TIMER_TASK_PROC_NAME			("auto_set_vdd")
 
@@ -36,18 +41,25 @@
 
 #define DEFAULT_MODULE_ID				(0x1000E900)
 #define DEFAULT_PARAM_ID				(0x1000EA03)
+#ifdef SIXTH_CORE_V2_0
+#define COMPONENT_ID					(66)//ID_VDD,66 0x42
+#else
 #define COMPONENT_ID					(50)//ID_VDD,50 0x32
+#endif
 #define VDD_DEFAULT_VAL					(3300000)//3.3v
 #define VDD_MSG_INVALID_VAL				(0xFFFFFFFF);
 
 
 typedef struct sia81xx_set_vdd_info {
 	uint32_t timer_task_hdl;
+	uint32_t chip_type;
 	uint32_t channel_num;
+	struct regmap *regmap;
 	unsigned long cal_handle;	//afe handle(qcom) or cal module unit(mtk)
 	uint32_t cal_id; //afe port id(qcom) or task scene(mtk)	
 	uint32_t vdd_val_pool[AUTO_SET_NORMAL_SET_SAMPLES];
 	uint32_t vdd_val_pool_pos;
+	uint32_t pre_vdd;
 	volatile uint32_t vdd_sample_cnt;
 	uint32_t vdd_sample_send;
 	uint32_t is_enable;
@@ -61,6 +73,10 @@ typedef struct sia81xx_vdd_msg {
 	uint32_t p0;
 	uint32_t p1;
 	uint32_t p2;
+#ifdef SIXTH_CORE_V2_0
+	uint32_t p3;
+	uint32_t p4;
+#endif
 } __packed SIA81XX_VDD_MSG;
 
 typedef struct sia81xx_vdd_param {
@@ -231,6 +247,9 @@ static void delete_all_info(void)
 			info_table[i].cal_id = 0;
 			info_table[i].timer_task_hdl = SIA81XX_TIMER_TASK_INVALID_HDL;
 			info_table[i].channel_num = SIA81XX_MAX_CHANNEL_SUPPORT;
+			info_table[i].chip_type = CHIP_TYPE_INVALID;
+			info_table[i].regmap = NULL;
+			info_table[i].pre_vdd = VDD_DEFAULT_VAL;
 		}
 	}
 }
@@ -256,9 +275,13 @@ static void send_set_vdd_msg(
 	param.msg.vdd = vdd;
 	/* don't set these in driver, it should be setted at acdb and it's fixed */
 	param.msg.p0 = VDD_MSG_INVALID_VAL;
-	param.msg.p1= VDD_MSG_INVALID_VAL;
+	param.msg.p1 = VDD_MSG_INVALID_VAL;
 	param.msg.p2 = VDD_MSG_INVALID_VAL;
-	
+#ifdef SIXTH_CORE_V2_0
+	param.msg.p3 = VDD_MSG_INVALID_VAL;
+	param.msg.p4 = VDD_MSG_INVALID_VAL;
+#endif
+
 	ret = tuning_if_opt.write(
 		info->cal_handle, 
 		info->module_id, 
@@ -345,7 +368,9 @@ static int sia81xx_auto_set_timer_task_callback(
 	int is_first, 
 	void *data) 
 {
+	uint32_t vol = VDD_DEFAULT_VAL;
 	struct sia81xx_set_vdd_info *info = NULL;
+
 	if(NULL == data) {
 		pr_err("[  err][%s] %s: NULL == data \r\n", 
 			LOG_FLAG, __func__);
@@ -364,11 +389,29 @@ static int sia81xx_auto_set_timer_task_callback(
 	if(info->vdd_sample_cnt < info->vdd_sample_send)
 		return 0;	
 
-	if(1 == info->is_enable) {
-		send_set_vdd_msg(
-				info, 
-				sia81xx_get_battery_voltage(info, AUTO_SET_FIRST_SET_SAMPLES),
-				info->channel_num);
+	vol = sia81xx_get_battery_voltage(info, AUTO_SET_FIRST_SET_SAMPLES);
+	if (vol > info->pre_vdd) {
+		if (1 == SIA81XX_AUTO_PVDD_EN_GET(info->is_enable)) {
+			sia81xx_regmap_set_pvdd_limit(info->regmap, info->chip_type, vol);
+			msleep(1);
+		}
+
+		if (1 == SIA81XX_AUTO_VDD_EN_GET(info->is_enable)) {
+			send_set_vdd_msg(info, vol, info->channel_num);
+		}
+
+		info->pre_vdd = vol;
+	} else if (vol < info->pre_vdd) {
+		if (1 == SIA81XX_AUTO_VDD_EN_GET(info->is_enable)) {
+			send_set_vdd_msg(info, vol, info->channel_num);
+		}
+		
+		if (1 == SIA81XX_AUTO_PVDD_EN_GET(info->is_enable)) {
+			msleep(6);	// depends on the algorithm action time
+			sia81xx_regmap_set_pvdd_limit(info->regmap, info->chip_type, vol);
+		}
+
+		info->pre_vdd = vol;
 	}
 
 	info->vdd_sample_cnt = 0;
@@ -390,15 +433,14 @@ void sia81xx_set_auto_set_vdd_work_state(
 	if(NULL == pInfo) 
 		return ;
 
-	if(state > 0)
-		pInfo->is_enable = 1;
-	else
-		pInfo->is_enable = 0;
+	pInfo->is_enable = state;
 }
 
 int sia81xx_auto_set_vdd_probe(
 	uint32_t timer_task_hdl, 
-	uint32_t channel_num, 
+	uint32_t chip_type,
+	uint32_t channel_num,
+	struct regmap *regmap,
 	uint32_t cal_id, 
 	uint32_t state)
 {
@@ -407,9 +449,12 @@ int sia81xx_auto_set_vdd_probe(
 	struct sia81xx_set_vdd_info *pInfo = 
 		is_cal_id_exist(timer_task_hdl, channel_num);
 	if(NULL == pInfo) {
+		pr_info("[ info][%s] %s: timer task %u first register \r\n", 
+			LOG_FLAG, __func__, timer_task_hdl);
+
 		ret = sia81xx_open_set_vdd_server(timer_task_hdl, channel_num, cal_id);
 		if(0 != ret) {
-			pr_err("[  err][%s] %s: sia81xx_close_set_vdd_server ret : %d \r\n", 
+			pr_err("[  err][%s] %s: sia81xx_open_set_vdd_server ret : %d \r\n", 
 				LOG_FLAG, __func__, ret);
 			return -EINVAL;
 		}
@@ -422,15 +467,18 @@ int sia81xx_auto_set_vdd_probe(
 		}
 	}
 
+	pInfo->chip_type = chip_type;
 	pInfo->channel_num = channel_num;
+	pInfo->regmap = regmap;
 	/* clear vdd sample pool state */
+	pInfo->pre_vdd = VDD_DEFAULT_VAL;
 	pInfo->vdd_sample_send = AUTO_SET_FIRST_SET_SAMPLES;
 	pInfo->vdd_sample_cnt = 0;
 	pInfo->vdd_val_pool_pos = 0;
 	for(i = 0; i < ARRAY_SIZE(pInfo->vdd_val_pool); i++) {
 		pInfo->vdd_val_pool[i] = VDD_DEFAULT_VAL;
 	}
-	
+
 	ret = sia81xx_timer_task_register(
 			timer_task_hdl, 
 			TIMER_TASK_PROC_NAME, 

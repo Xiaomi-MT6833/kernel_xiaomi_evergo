@@ -19,6 +19,9 @@ obj-$(CONFIG_SND_SOC_MTK_SCP_SMARTPA) += utility/
 #scp vow bargein related code
 obj-$(CONFIG_MTK_VOW_BARGE_IN_SUPPORT) += scp_vow/
 
+#scp ultra sound related code
+obj-$(CONFIG_MTK_ULTRASND_PROXIMITY) += scp_ultra/
+
 # dsp related code
 obj-$(CONFIG_SND_SOC_MTK_AUDIO_DSP) += audio_dsp/
 obj-$(CONFIG_SND_SOC_MTK_AUDIO_DSP) += common_int/
@@ -31,6 +34,7 @@ obj-$(CONFIG_SND_SOC_MT6768) += mt6768/
 obj-$(CONFIG_SND_SOC_MT8168) += mt8168/
 obj-$(CONFIG_SND_SOC_MT6785) += mt6785/
 obj-$(CONFIG_SND_SOC_MT8173) += mt8173/
+obj-$(CONFIG_SND_SOC_MT6877) += mt6877/
 obj-$(CONFIG_SND_SOC_MT6833) += mt6833/
 obj-$(CONFIG_SND_SOC_MT6853) += mt6853/
 obj-$(CONFIG_SND_SOC_MT6873) += mt6873/
@@ -110,7 +114,6 @@ endif
 
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/scp/$(AUDIO_PLATFORM)/
 subdir-ccflags-y += -Werror -I$(srctree)/drivers/misc/mediatek/audio_ipi/$(AUDIO_PLATFORM)/
-
 
 # Common include path
 subdir-ccflags-y += -Werror -I$(src)/common_int

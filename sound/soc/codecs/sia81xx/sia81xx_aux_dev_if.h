@@ -31,6 +31,9 @@ int soc_sia81xx_init(
 int soc_aux_init_only_sia81xx(
 	struct platform_device *pdev, 
 	struct snd_soc_card *card);
+int soc_aux_deinit_only_sia81xx(
+	struct platform_device *pdev, 
+	struct snd_soc_card *card);
 
 #endif /* _SIA81XX_AUX_DEV_IF_H */
 

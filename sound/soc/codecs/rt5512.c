@@ -399,7 +399,6 @@ static int rt5512_codec_dac_event(struct snd_soc_dapm_widget *w,
 		ret = snd_soc_update_bits(codec, 0x03, 0x0002, 0x0000);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
-		ret = snd_soc_write(codec, 0x15, 0x0410);
 		break;
 	}
 	return ret;
@@ -646,7 +645,6 @@ static int rt5512_codec_setting(struct snd_soc_codec *codec)
 	struct rt5512_chip *chip = snd_soc_codec_get_drvdata(codec);
 	int ret = 0;
 
-	pr_info("%s start, chip_rev = %x\n", __func__, chip->chip_rev);
 	chip->ff_gain = snd_soc_read(codec, 0x4d);
 	if (chip->chip_rev == RT5512_REV_A) {
 		/* RT5512A_RU012B_algorithm_20201110.lua */
@@ -798,7 +796,6 @@ static int rt5512_spm_pre_calib(struct richtek_spm_classdev *ptc)
 	struct rt5512_chip *chip = container_of(ptc, struct rt5512_chip, spm);
 	int ret = 0;
 
-	pr_err("%s\n", __func__);
 	ret |= rt5512_chip_power_on(chip, 1);
 	ret |= snd_soc_update_bits(chip->codec, RT5512_REG_PATH_BYPASS, 0x0004,
 				  0x0004);
@@ -811,7 +808,6 @@ static int rt5512_spm_post_calib(struct richtek_spm_classdev *ptc)
 	struct rt5512_chip *chip = container_of(ptc, struct rt5512_chip, spm);
 	int ret = 0;
 
-	pr_err("%s\n", __func__);
 	ret |= rt5512_chip_power_on(chip, 1);
 	ret |= snd_soc_update_bits(chip->codec, RT5512_REG_PATH_BYPASS, 0x0004,
 				   0x00);
@@ -825,7 +821,6 @@ static int rt5512_spm_pre_vvalid(struct richtek_spm_classdev *ptc)
 	struct rt5512_chip *chip = container_of(ptc, struct rt5512_chip, spm);
 	int ret = 0;
 
-	pr_err("%s\n", __func__);
 	ret |= rt5512_chip_power_on(chip, 1);
 	ret |= snd_soc_write(chip->codec, 0x4d, 0x00);
 	ret |= rt5512_chip_power_on(chip, 0);
@@ -838,7 +833,6 @@ static int rt5512_spm_post_vvalid(struct richtek_spm_classdev *ptc)
 	struct rt5512_chip *chip = container_of(ptc, struct rt5512_chip, spm);
 	int ret = 0;
 
-	pr_err("%s\n", __func__);
 	ret |= rt5512_chip_power_on(chip, 1);
 	ret |= snd_soc_write(chip->codec, 0x4d, chip->ff_gain);
 	ret |= rt5512_chip_power_on(chip, 0);
@@ -1046,9 +1040,14 @@ static struct snd_soc_dai_driver rt5512_codec_dai = {
 static inline int _rt5512_chip_sw_reset(struct rt5512_chip *chip)
 {
 	int ret;
+	u8 data[2] = {0x00, 0x00};
 	u8 reg_data[2] = {0x00, 0x80};
 
 	/* turn on main pll first, then trigger reset */
+	ret = i2c_smbus_write_i2c_block_data(chip->i2c, RT5512_REG_SYSTEM_CTRL,
+					     2, data);
+	if (ret < 0)
+		return ret;
 	ret = i2c_smbus_write_i2c_block_data(chip->i2c, RT5512_REG_SYSTEM_CTRL,
 					     2, reg_data);
 	if (ret < 0)
@@ -1075,25 +1074,6 @@ static inline int _rt5512_chip_sw_reset(struct rt5512_chip *chip)
 		}
 	}
 	return 0;
-}
-
-static inline int _rt5512_chip_power_on(struct rt5512_chip *chip, int onoff)
-{
-	int ret = 0;
-	u8 reg_data[2] = {0};
-
-	ret = i2c_smbus_read_i2c_block_data(chip->i2c, RT5512_REG_SYSTEM_CTRL,
-					    2, reg_data);
-	if (ret < 0)
-		return ret;
-	if (onoff)
-		reg_data[0] &= (~0x01);
-	else
-		reg_data[0] |= 0x01;
-	ret = i2c_smbus_write_i2c_block_data(chip->i2c, RT5512_REG_SYSTEM_CTRL,
-					     2, reg_data);
-	mdelay(2);
-	return ret;
 }
 
 static int rt5512_get_t0(struct rt5512_chip *chip)
@@ -1127,14 +1107,22 @@ static inline int rt5512_chip_id_check(struct rt5512_chip *chip)
 	u8 id[2] = {0};
 	int ret = 0;
 	int chip_rev = 0;
+	u8 data[2] = {0x00, 0x00};
 
-	pr_info("%s\n", __func__);
-	ret = _rt5512_chip_power_on(chip, 1);
+	ret = i2c_smbus_write_i2c_block_data(chip->i2c, RT5512_REG_SYSTEM_CTRL,
+					     2, data);
+	if (ret < 0)
+		return ret;
 	ret = i2c_smbus_read_i2c_block_data(chip->i2c, RT5512_REG_DEVID, 2, id);
 	if (ret < 0)
 		return ret;
 	chip_rev = id[1];
-	ret = _rt5512_chip_power_on(chip, 0);
+
+	data[1] = 0x01;
+	ret = i2c_smbus_write_i2c_block_data(chip->i2c, RT5512_REG_SYSTEM_CTRL,
+					     2, data);
+	if (ret < 0)
+		return ret;
 	return chip_rev;
 }
 
@@ -1157,17 +1145,10 @@ int rt5512_i2c_probe(struct i2c_client *client,
 	mutex_init(&chip->var_lock);
 	i2c_set_clientdata(client, chip);
 
-	/* chip power on */
-	ret = _rt5512_chip_power_on(chip, 1);
-	if (ret < 0) {
-		dev_err(chip->dev, "chip power on 1 fail\n");
-		goto probe_fail;
-	}
-
 	chip_rev = rt5512_chip_id_check(chip);
 	if (chip_rev < 0) {
 		dev_err(&client->dev, "chip id check fail\n");
-		return ret;
+		return -ENODEV;
 	}
 	chip->chip_rev = chip_rev;
 
@@ -1210,6 +1191,7 @@ int rt5512_i2c_probe(struct i2c_client *client,
 	chip->t0 = rt5512_get_t0(chip);
 	if (chip->t0 < 0) {
 		dev_err(chip->dev, "get t0 fail(%d)\n", chip->t0);
+		ret = chip->t0;
 		goto probe_fail;
 	}
 
@@ -1256,8 +1238,12 @@ module_exit(rt5512_driver_exit);
 MODULE_AUTHOR("Jeff Chang <jeff_chang@richtek.com>");
 MODULE_DESCRIPTION("RT5512 SPKAMP Driver");
 MODULE_LICENSE("GPL");
-MODULE_VERSION("1.0.2_M");
+MODULE_VERSION("1.0.4_M");
 /*
  * 1.0.2_M
  *	1. update INIT SETTING & amp on flow
+ * 1.0.3_M
+ *	1. update amp flow
+ * 1.0.4_M
+ *	1. fix id check return error code
  */

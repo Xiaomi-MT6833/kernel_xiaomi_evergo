@@ -42,7 +42,7 @@ struct richtek_ipi_cmd {
 	int32_t type;
 	int32_t cmd;
 	int32_t data[16];
-};
+} __aligned(32);
 #pragma pack(pop)
 
 enum {

@@ -3,6 +3,7 @@
  * proc_tty.c -- handles /proc/tty
  *
  * Copyright 1997, Theodore Ts'o
+ * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #include <linux/uaccess.h>

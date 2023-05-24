@@ -138,4 +138,13 @@ ifneq ($(strip $(TARGET_NO_KERNEL)),true)
     BUILT_KERNEL_TARGET := $(TARGET_PREBUILT_KERNEL)
   endif#TARGET_PREBUILT_KERNEL is empty
     KERNEL_MAKE_OPTION += PROJECT_DTB_NAMES='$(PROJECT_DTB_NAMES)'
+
+#+REQ 653714 lizhenyu.wt, 20210507, ATO build default root
+  ifeq ($(strip $(WT_FINAL_RELEASE)),yes)
+    KERNEL_MAKE_OPTION += WT_FINAL_RELEASE=yes
+  endif
+  ifeq ($(strip $(WT_COMPILE_FACTORY_VERSION)),yes)
+    KERNEL_MAKE_OPTION += WT_COMPILE_FACTORY_VERSION=yes
+  endif
+#-REQ 653714 lizhenyu.wt, 20210507, ATO build default root
 endif#TARGET_NO_KERNEL

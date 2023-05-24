@@ -104,6 +104,7 @@
 #endif
 
 #define	INFINITY_LIFE_TIME	0xFFFFFFFF
+#define	RTR_SOLICITS_MAX	3
 
 #define IPV6_MAX_STRLEN \
 	sizeof("ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255")
@@ -203,6 +204,7 @@ static struct ipv6_devconf ipv6_devconf __read_mostly = {
 	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
+	.ra_mtu			= 0,
 	.accept_ra		= 1,
 	.accept_redirects	= 1,
 	.autoconf		= 1,
@@ -258,6 +260,7 @@ static struct ipv6_devconf ipv6_devconf_dflt __read_mostly = {
 	.forwarding		= 0,
 	.hop_limit		= IPV6_DEFAULT_HOPLIMIT,
 	.mtu6			= IPV6_MIN_MTU,
+	.ra_mtu                 = 0,
 	.accept_ra		= 1,
 	.accept_redirects	= 1,
 	.autoconf		= 1,
@@ -3875,6 +3878,12 @@ static void addrconf_rs_timer(unsigned long data)
 	if (idev->if_flags & IF_RA_RCVD)
 		goto out;
 
+	if (idev->rs_probes == RTR_SOLICITS_MAX && (idev->if_flags & IF_RS_VZW_SENT)) {
+		idev->if_flags &= ~IF_RS_VZW_SENT;
+		inet6_no_ra_notify(RTM_DELADDR, idev);
+		goto out;
+	}
+
 	if (idev->rs_probes++ < idev->cnf.rtr_solicits || idev->cnf.rtr_solicits < 0) {
 		write_unlock(&idev->lock);
 		if (!ipv6_get_lladdr(dev, &lladdr, IFA_F_TENTATIVE))
@@ -3897,12 +3906,6 @@ static void addrconf_rs_timer(unsigned long data)
 				      idev->cnf.rtr_solicit_delay :
 				      idev->rs_interval);
 	} else {
-		inet6_no_ra_notify(RTM_DELADDR, idev);
-		if (sysctl_optr == MTK_IPV6_VZW_ALL ||
-		    sysctl_optr == MTK_IPV6_EX_RS_INTERVAL) {
-			if (idev->if_flags & IF_RS_VZW_SENT)
-				idev->if_flags &= ~IF_RS_VZW_SENT;
-		}
 		/*
 		 * Note: we do not support deprecated "all on-link"
 		 * assumption any longer.
@@ -5259,6 +5262,7 @@ static inline void ipv6_store_devconf(struct ipv6_devconf *cnf,
 	array[DEVCONF_FORWARDING] = cnf->forwarding;
 	array[DEVCONF_HOPLIMIT] = cnf->hop_limit;
 	array[DEVCONF_MTU6] = cnf->mtu6;
+	array[DEVCONF_RA_MTU] = cnf->ra_mtu;
 	array[DEVCONF_ACCEPT_RA] = cnf->accept_ra;
 	array[DEVCONF_ACCEPT_REDIRECTS] = cnf->accept_redirects;
 	array[DEVCONF_AUTOCONF] = cnf->autoconf;
@@ -6288,6 +6292,13 @@ static const struct ctl_table addrconf_sysctl[] = {
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= addrconf_sysctl_mtu,
+	},
+	{
+		.procname	= "ra_mtu",
+		.data		= &ipv6_devconf.ra_mtu,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
 	},
 	{
 		.procname	= "accept_ra",

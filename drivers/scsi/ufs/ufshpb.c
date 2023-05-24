@@ -2,6 +2,7 @@
  * Universal Flash Storage Host Performance Booster
  *
  * Copyright (C) 2017-2018 Samsung Electronics Co., Ltd.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * Authors:
  *	Yongmyung Lee <ymhungry.lee@samsung.com>
@@ -1723,6 +1724,7 @@ void ufshpb_rsp_upiu(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
 {
 	struct ufshpb_lu *hpb;
 	struct ufshpb_rsp_field *rsp_field;
+	struct ufshpb_rsp_field sense_data;
 	int data_seg_len, ret;
 
 	data_seg_len = be32_to_cpu(lrbp->ucd_rsp_ptr->header.dword_2)
@@ -1746,7 +1748,9 @@ void ufshpb_rsp_upiu(struct ufsf_feature *ufsf, struct ufshcd_lrb *lrbp)
 		goto put_hpb;
 	}
 
-	rsp_field = ufshpb_get_hpb_rsp(lrbp);
+	memcpy(&sense_data, &lrbp->ucd_rsp_ptr->sr.sense_data_len,
+		sizeof(struct ufshpb_rsp_field));
+	rsp_field = &sense_data;
 
 	if (ufshpb_may_field_valid(lrbp, rsp_field)) {
 		WARN_ON(rsp_field->additional_len != DEV_ADDITIONAL_LEN);

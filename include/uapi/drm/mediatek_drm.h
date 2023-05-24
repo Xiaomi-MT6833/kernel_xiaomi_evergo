@@ -145,6 +145,14 @@ struct drm_mtk_session {
 
 enum TONE_ENUM { PURP_TONE = 0, SKIN_TONE = 1, GRASS_TONE = 2, SKY_TONE = 3 };
 
+struct DISP_PQ_BYPASS_SWITCH {
+	int color_bypass;
+	int ccorr_bypass;
+	int gamma_bypass;
+	int dither_bypass;
+	int aal_bypass;
+};
+
 struct DISP_PQ_WIN_PARAM {
 	int split_en;
 	int start_x;
@@ -408,8 +416,10 @@ struct DISP_PQ_PARAM {
 #define DRM_MTK_GET_SESSION_INFO	0x0A
 #define DRM_MTK_SEC_HND_TO_GEM_HND	0x0B
 #define DRM_MTK_GET_MASTER_INFO		0x0C
+#define DRM_MTK_CRTC_GETSFFENCE         0x0D
 
 /* PQ */
+#define DRM_MTK_PQ_DEBUG			0x1F
 #define DRM_MTK_SET_CCORR			0x20
 #define DRM_MTK_CCORR_EVENTCTL   0x21
 #define DRM_MTK_CCORR_GET_IRQ    0x22
@@ -571,6 +581,7 @@ enum MTK_DRM_DISP_FEATURE {
 	DRM_DISP_FEATURE_OUTPUT_ROTATED = 0x00000010,
 	DRM_DISP_FEATURE_THREE_SESSION = 0x00000020,
 	DRM_DISP_FEATURE_FBDC = 0x00000040,
+	DRM_DISP_FEATURE_SF_PRESENT_FENCE = 0x00000080,
 };
 
 struct mtk_drm_disp_caps_info {
@@ -650,6 +661,9 @@ struct DRM_DISP_WRITE_REG {
 #define DRM_IOCTL_MTK_CRTC_GETFENCE	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_CRTC_GETFENCE, struct drm_mtk_fence)
 
+#define DRM_IOCTL_MTK_CRTC_GETSFFENCE	DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_CRTC_GETSFFENCE, struct drm_mtk_fence)
+
 #define DRM_IOCTL_MTK_WAIT_REPAINT	DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_WAIT_REPAINT, unsigned int)
 
@@ -667,6 +681,9 @@ struct DRM_DISP_WRITE_REG {
 
 #define DRM_IOCTL_MTK_SEC_HND_TO_GEM_HND     DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SEC_HND_TO_GEM_HND, struct drm_mtk_sec_gem_hnd)
+
+#define DRM_IOCTL_MTK_PQ_DEBUG    DRM_IOWR(DRM_COMMAND_BASE + \
+		DRM_MTK_PQ_DEBUG, struct DISP_PQ_BYPASS_SWITCH)
 
 #define DRM_IOCTL_MTK_SET_CCORR     DRM_IOWR(DRM_COMMAND_BASE + \
 		DRM_MTK_SET_CCORR, struct DRM_DISP_CCORR_COEF_T)

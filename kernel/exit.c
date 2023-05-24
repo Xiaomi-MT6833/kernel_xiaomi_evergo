@@ -2,6 +2,7 @@
  *  linux/kernel/exit.c
  *
  *  Copyright (C) 1991, 1992  Linus Torvalds
+ *  Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #include <linux/mm.h>

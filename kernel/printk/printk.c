@@ -963,10 +963,13 @@ static ssize_t devkmsg_write(struct kiocb *iocb, struct iov_iter *from)
 		return len;
 
 	/* Ratelimit when not explicitly enabled. */
+// CHK-88965,chenhengshi.wt,2021.5.24,add wt final release control init log print
+#ifdef WT_FINAL_RELEASE
 	if (!(devkmsg_log & DEVKMSG_LOG_MASK_ON)) {
 		if (!___ratelimit(&user->rs, current->comm))
 			return ret;
 	}
+#endif
 
 	buf = kmalloc(len+1, GFP_KERNEL);
 	if (buf == NULL)

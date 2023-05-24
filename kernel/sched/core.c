@@ -4,6 +4,7 @@
  *  Core kernel scheduler code and related syscalls
  *
  *  Copyright (C) 1991-2002  Linus Torvalds
+ *  Copyright (C) 2021 XiaoMi, Inc.
  */
 #include <linux/sched.h>
 #include <linux/sched/clock.h>
@@ -3456,6 +3457,10 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 
 	INIT_LIST_HEAD(&p->se.group_node);
 	walt_init_new_task_load(p);
+
+#ifdef CONFIG_MIGT
+	migt_monitor_init(p);
+#endif
 
 #ifdef CONFIG_FAIR_GROUP_SCHED
 	p->se.cfs_rq			= NULL;

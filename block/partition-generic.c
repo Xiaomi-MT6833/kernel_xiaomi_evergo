@@ -2,6 +2,7 @@
 /*
  *  Code extracted from drivers/block/genhd.c
  *  Copyright (C) 1991-1998  Linus Torvalds
+ *  Copyright (C) 2021 XiaoMi, Inc.
  *  Re-organised Feb 1998 Russell King
  *
  *  We now have independent partition support from the

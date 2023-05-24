@@ -199,11 +199,6 @@ static int parse_audio_format_rates_v1(struct snd_usb_audio *chip, struct audiof
 			    (chip->usb_id == USB_ID(0x041e, 0x4064) ||
 			     chip->usb_id == USB_ID(0x041e, 0x4068)))
 				rate = 8000;
-			/* Huawei headset can't support 96kHz fully */
-			if (rate == 96000 &&
-			    chip->usb_id == USB_ID(0x12d1, 0x3a07) &&
-			    le16_to_cpu(udev->descriptor.bcdDevice) == 0x49)
-				continue;
 
 			fp->rate_table[fp->nr_rates] = rate;
 			if (!fp->rate_min || rate < fp->rate_min)

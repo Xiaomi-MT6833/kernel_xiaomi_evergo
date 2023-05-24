@@ -392,8 +392,8 @@ static u32 read_spm_pwr_status(void)
 	static void __iomem *scpsys_base, *pwr_sta, *pwr_sta_2nd;
 
 	if (clkdbg_ops == NULL || clkdbg_ops->get_spm_pwr_status  == NULL) {
-		if (scpsys_base == NULL ||
-		    pwr_sta == NULL || pwr_sta_2nd == NULL) {
+		if (scpsys_base == NULL || pwr_sta == NULL
+				|| pwr_sta_2nd == NULL) {
 			scpsys_base = ioremap(0x10006000, PAGE_SIZE);
 			pwr_sta = scpsys_base + 0x60c;
 			pwr_sta_2nd = scpsys_base + 0x610;
@@ -404,32 +404,74 @@ static u32 read_spm_pwr_status(void)
 		return clkdbg_ops->get_spm_pwr_status();
 }
 
-static bool clk_hw_pwr_is_on(struct clk_hw *c_hw,
-			u32 spm_pwr_status, u32 pwr_mask)
+static s32 *read_spm_pwr_status_array(void)
 {
-	if ((spm_pwr_status & pwr_mask) != pwr_mask)
-		return false;
+	static void __iomem *scpsys_base, *pwr_sta, *pwr_sta_2nd;
+	static int pwr_sta_val[STA_NUM];
+
+	if (clkdbg_ops == NULL || clkdbg_ops->get_spm_pwr_status_array  == NULL)
+		return  ERR_PTR(-EINVAL);
+
+	return clkdbg_ops->get_spm_pwr_status_array();
+}
+
+static int clk_hw_pwr_is_on(struct clk_hw *c_hw, u32 *spm_pwr_status,
+		struct provider_clk *pvdck)
+{
+	if (!pvdck || !pvdck->pwr_mask)
+		return 0;
+
+	if (pvdck->sta_type == PWR_STA) {
+		if ((spm_pwr_status[PWR_STA] & pvdck->pwr_mask) != pvdck->pwr_mask &&
+				(spm_pwr_status[PWR_STA2] & pvdck->pwr_mask) != pvdck->pwr_mask)
+			return 0;
+		else if ((spm_pwr_status[PWR_STA] & pvdck->pwr_mask) == pvdck->pwr_mask &&
+				(spm_pwr_status[PWR_STA2] & pvdck->pwr_mask) == pvdck->pwr_mask)
+			return 1;
+		else
+			return -1;
+	} else if (pvdck->sta_type == XPU_PWR_STA) {
+		if ((spm_pwr_status[XPU_PWR_STA] & pvdck->pwr_mask) != pvdck->pwr_mask &&
+				(spm_pwr_status[XPU_PWR_STA2] & pvdck->pwr_mask) != pvdck->pwr_mask)
+			return 0;
+		else if ((spm_pwr_status[XPU_PWR_STA] & pvdck->pwr_mask) == pvdck->pwr_mask &&
+				(spm_pwr_status[XPU_PWR_STA2] & pvdck->pwr_mask) == pvdck->pwr_mask)
+			return 1;
+		else
+			return -1;
+	} else if (pvdck->sta_type == OTHER_PWR_STA) {
+		if ((spm_pwr_status[OTHER_PWR_STA] & pvdck->pwr_mask) != pvdck->pwr_mask)
+			return 0;
+		else
+			return 1;
+	}
 
 	return clk_hw_is_on(c_hw);
 }
 
-static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 spm_pwr_status)
+static bool pvdck_pwr_is_on(struct provider_clk *pvdck, u32 *spm_pwr_status)
 {
 	struct clk *c = pvdck->ck;
 	struct clk_hw *c_hw = __clk_get_hw(c);
 
-	return clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck->pwr_mask);
+	return clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck);
 }
 
 static bool pvdck_is_on(struct provider_clk *pvdck)
 {
-	u32 val = 0;
+	u32 *pval;
+	u32 val;
 
 	if (clkdbg_ops == NULL || clkdbg_ops->is_pwr_on == NULL) {
-		if (pvdck->pwr_mask != 0U)
-			val = read_spm_pwr_status();
+		if (!pvdck || !pvdck->pwr_mask)
+			return false;
 
-		return pvdck_pwr_is_on(pvdck, val);
+		pval = read_spm_pwr_status_array();
+		if (IS_ERR_OR_NULL(pval)) {
+			val = read_spm_pwr_status();
+			return pvdck_pwr_is_on(pvdck, &val);
+		} else
+			return pvdck_pwr_is_on(pvdck, pval);
 	}
 
 	val = clkdbg_ops->is_pwr_on(pvdck);
@@ -581,7 +623,7 @@ static void dump_provider_clk(struct provider_clk *pvdck, struct seq_file *s)
 	seq_printf(s, "[%10s: %-17s: %3s, %3d, %3d, %10ld, %17s]\n",
 		pvdck->provider_name != NULL ? pvdck->provider_name : "/ ",
 		clk_hw_get_name(c_hw),
-		pvdck_is_on(pvdck) ? "ON" : "off",
+		pvdck_is_on(pvdck) > 0 ? "ON" : pvdck_is_on(pvdck) == 0 ? "OFF" : "ERR",
 		clk_hw_is_prepared(c_hw),
 		__clk_get_enable_count(c),
 		clk_hw_get_rate(c_hw),
@@ -1886,13 +1928,13 @@ static struct save_point save_point_1;
 static struct save_point save_point_2;
 static struct save_point save_point_3;
 
-static void save_pwr_status(u32 *spm_pwr_status)
+static void save_pwr_status(u32 spm_pwr_status)
 {
-	*spm_pwr_status = read_spm_pwr_status();
+	spm_pwr_status = read_spm_pwr_status();
 }
 
 static void save_all_clks_state(struct provider_clk_state *clks_states,
-				u32 spm_pwr_status)
+				u32 *spm_pwr_status)
 {
 	struct provider_clk *pvdck = get_all_provider_clks();
 	struct provider_clk_state *st = clks_states;
@@ -1903,8 +1945,7 @@ static void save_all_clks_state(struct provider_clk_state *clks_states,
 
 		st->pvdck = pvdck;
 		st->prepared = clk_hw_is_prepared(c_hw);
-		st->enabled = clk_hw_pwr_is_on(c_hw, spm_pwr_status,
-							pvdck->pwr_mask);
+		st->enabled = clk_hw_pwr_is_on(c_hw, spm_pwr_status, pvdck);
 		st->enable_count = __clk_get_enable_count(c);
 		st->rate = clk_hw_get_rate(c_hw);
 		st->parent = IS_ERR_OR_NULL(c) ? NULL : clk_get_parent(c);
@@ -1963,7 +2004,7 @@ static void show_save_point(struct save_point *sp)
 
 static void store_save_point(struct save_point *sp)
 {
-	save_pwr_status(&sp->spm_pwr_status);
+	save_pwr_status(sp->spm_pwr_status);
 	save_all_clks_state(sp->clks_states, sp->spm_pwr_status);
 
 #if CLKDBG_PM_DOMAIN
@@ -2143,6 +2184,7 @@ static const struct cmd_fn common_cmds[] = {
 	CMDFN("dump_muxes", clkdbg_dump_muxes),
 	CMDFN("fmeter", seq_print_fmeter_all),
 	CMDFN("pwr_status", clkdbg_pwr_status),
+#if defined(CONFIG_MTK_ENG_BUILD)
 	CMDFN("prepare", clkdbg_prepare),
 	CMDFN("unprepare", clkdbg_unprepare),
 	CMDFN("enable", clkdbg_enable),
@@ -2157,6 +2199,7 @@ static const struct cmd_fn common_cmds[] = {
 	CMDFN("reg_write", clkdbg_reg_write),
 	CMDFN("reg_set", clkdbg_reg_set),
 	CMDFN("reg_clr", clkdbg_reg_clr),
+#endif /* CONFIG_MTK_ENG_BUILD */
 	CMDFN("show_flags", clkdbg_show_flags),
 	CMDFN("set_flag", clkdbg_set_flag),
 	CMDFN("clr_flag", clkdbg_clr_flag),

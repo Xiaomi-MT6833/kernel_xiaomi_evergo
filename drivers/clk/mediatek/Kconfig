@@ -658,13 +658,13 @@ config COMMON_CLK_MT6877_MFGCFG
 	  If you wish to use clock resources from the mfgcfg device,
 	  say Y. Otherwise, say N.
 
-config COMMON_CLK_MT6877_MMSYS
-	bool "Clock driver for MediaTek MT6877 mmsys"
+config COMMON_CLK_MT6877_DISPSYS
+	bool "Clock driver for MediaTek MT6877 dispsys"
 	depends on COMMON_CLK_MT6877
 	---help---
-	  This driver supports MediaTek MT6877 mmsys clocks,
-	  which is used to control mmsys clock output.
-	  If you wish to use clock resources from the mmsys device,
+	  This driver supports MediaTek MT6877 dispsys clocks,
+	  which is used to control dispsys clock output.
+	  If you wish to use clock resources from the dispsys device,
 	  say Y. Otherwise, say N.
 
 config COMMON_CLK_MT6877_MSDC

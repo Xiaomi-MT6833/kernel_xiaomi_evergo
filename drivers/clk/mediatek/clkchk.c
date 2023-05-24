@@ -15,6 +15,7 @@
 
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
+#include <linux/slab.h>
 #include <linux/syscore_ops.h>
 
 #ifdef CONFIG_MTK_DEVAPC
@@ -22,14 +23,16 @@
 #endif
 #include "clkchk.h"
 
-#define AEE_EXCP_CHECK_PLL_FAIL		0
+#define AEE_EXCP_CHECK_FAIL		0
 #define CLKDBG_CCF_API_4_4		1
 #define MAX_PLLS			32
 #define MAX_MTCMOS			32
 #define CLKCHK_OFF_MODE			0
 #define CLKCHK_NOTICE_MODE		1
+#define PLL_TYPE			0
+#define MTCMOS_TYPE			1
 
-#if AEE_EXCP_CHECK_PLL_FAIL
+#if AEE_EXCP_CHECK_FAIL
 #include <mt-plat/aee.h>
 #endif
 
@@ -65,17 +68,14 @@ static struct clk_hw *clk_hw_get_parent(const struct clk_hw *hw)
 #endif /* !CLKDBG_CCF_API_4_4 */
 
 static struct clkchk_cfg_t *clkchk_cfg;
+static struct clk **off_plls;
+static struct clk **notice_plls;
+static struct clk **off_mtcmos;
+static struct clk **notice_mtcmos;
 
 #define clk_readl(addr)		readl(addr)
 #define clk_writel(addr, val)	\
 	do { writel(val, addr); wmb(); } while (0) /* sync write */
-
-#define _CKGEN(x)		(rb[topckgen].virt + (x))
-#define CLK_CFG_0		_CKGEN(0x10)
-
-#define _SCPSYS(x)		(rb[scpsys].virt + (x))
-#define SPM_PWR_STATUS		_SCPSYS(0x16C)
-#define SPM_PWR_STATUS_2ND	_SCPSYS(0x170)
 
 /*
  * for mtcmos debug
@@ -93,8 +93,9 @@ bool is_valid_reg(void __iomem *addr)
 #ifdef CONFIG_MTK_DEVAPC
 static void devapc_dump_regs(void)
 {
-	if (clkchk_cfg && clkchk_cfg && clkchk_cfg->get_devapc_dump)
-		clkchk_cfg->get_devapc_dump();
+	if (!clkchk_cfg || !clkchk_cfg || !clkchk_cfg->get_devapc_dump)
+		return;
+	clkchk_cfg->get_devapc_dump();
 }
 
 static struct devapc_vio_callbacks devapc_vio_handle = {
@@ -276,34 +277,35 @@ static void print_enabled_clks(void)
 	}
 }
 
-static void __clkchk_pll_internal(unsigned int mode)
+static int __clkchk_clk_init(struct clk **clks, const char * const *name, u32 len)
 {
-	static struct clk *plls[MAX_PLLS];
-	const char * const *pn;
+	struct clk **c;
+
+	if (!clkchk_cfg || !name)
+		return -EINVAL;
+
+	if (!clks[0]) {
+		struct clk **end = clks + len - 1;
+
+		for (c = clks; *name != NULL && c < end; name++, c++)
+			*c = __clk_lookup(*name);
+
+		return 0;
+	}
+
+	return -EINVAL;
+}
+
+static void __clkchk_clk_internal(struct clk **clks, unsigned int mode,
+			unsigned int type)
+{
 	struct clk **c;
 	int invalid = 0;
 
 	if (!clkchk_cfg)
 		return;
 
-	if (mode == CLKCHK_OFF_MODE)
-		pn = clkchk_cfg->off_pll_names;
-	else if (mode == CLKCHK_NOTICE_MODE)
-		pn = clkchk_cfg->notice_pll_names;
-	else
-		return;
-
-	if (!pn)
-		return;
-
-	if (plls[0] == NULL) {
-		struct clk **end = plls + MAX_PLLS - 1;
-
-		for (c = plls; *pn != NULL && c < end; pn++, c++)
-			*c = __clk_lookup(*pn);
-	}
-
-	for (c = plls; *c != NULL; c++) {
+	for (c = clks; *c != NULL; c++) {
 		struct clk_hw *c_hw = __clk_get_hw(*c);
 
 		if (c_hw == NULL)
@@ -322,12 +324,20 @@ static void __clkchk_pll_internal(unsigned int mode)
 		return;
 
 	/* invalid. output debug info */
-	print_enabled_clks();
+	if (type == PLL_TYPE)
+		print_enabled_clks();
 
 	if (mode == CLKCHK_OFF_MODE) {
-#if AEE_EXCP_CHECK_PLL_FAIL
-		if (clkchk_cfg->aee_excp_on_fail)
-			aee_kernel_exception("clkchk", "unclosed PLL: %s\n", buf);
+#if AEE_EXCP_CHECK_FAIL
+		if (clkchk_cfg->aee_excp_on_fail) {
+			if (type == PLL_TYPE)
+				aee_kernel_exception("clkchk",
+						"unclosed PLL: %s\n", buf);
+			if (type == MTCMOS_TYPE)
+				aee_kernel_warning("clkchk",
+					"@%s():%d, MTCMOS are not off\n",
+					__func__, __LINE__);
+		}
 #endif
 
 		if (clkchk_cfg->bug_on_fail)
@@ -350,83 +360,22 @@ void dump_enabled_clks_once(void)
 
 static void check_pll_off(void)
 {
-	__clkchk_pll_internal(CLKCHK_OFF_MODE);
+	__clkchk_clk_internal(off_plls, CLKCHK_OFF_MODE, PLL_TYPE);
 }
 
 static void check_pll_notice(void)
 {
-	__clkchk_pll_internal(CLKCHK_NOTICE_MODE);
-}
-
-static void __clkchk_mtcmos_internal(unsigned int mode)
-{
-	static struct clk *mtcmos[MAX_MTCMOS];
-	const char * const *mn;
-	struct clk **c;
-	int invalid = 0;
-
-	if (!clkchk_cfg)
-		return;
-
-	if (mode == CLKCHK_OFF_MODE)
-		mn = clkchk_cfg->off_mtcmos_names;
-	else if (mode == CLKCHK_NOTICE_MODE)
-		mn = clkchk_cfg->notice_mtcmos_names;
-	else
-		return;
-
-	if (!mn)
-		return;
-
-	if (!mtcmos[0]) {
-		struct clk **end = mtcmos + MAX_MTCMOS - 1;
-
-		for (c = mtcmos; *mn != NULL && c < end; mn++, c++)
-			*c = __clk_lookup(*mn);
-	}
-
-	for (c = mtcmos; *c; c++) {
-		struct clk_hw *c_hw = __clk_get_hw(*c);
-
-		if (!c_hw)
-			continue;
-
-		if (!clk_hw_is_prepared(c_hw) && !clk_hw_is_enabled(c_hw))
-			continue;
-
-		pr_notice("suspend warning[0m: %s is on\n",
-				clk_hw_get_name(c_hw));
-
-		invalid++;
-	}
-
-	if (invalid == 0)
-		return;
-
-	if (mode == CLKCHK_OFF_MODE) {
-#if AEE_EXCP_CHECK_PLL_FAIL
-		if (clkchk_cfg->aee_excp_on_fail)
-			aee_kernel_warning("CCF MT6853",
-					"@%s():%d, MTCMOSs are not off\n",
-					__func__, __LINE__);
-#endif
-
-		if (clkchk_cfg->bug_on_fail)
-			BUG_ON(true);
-
-		if (clkchk_cfg->warn_on_fail)
-			WARN_ON(true);
-	}
+	__clkchk_clk_internal(notice_plls, CLKCHK_NOTICE_MODE, PLL_TYPE);
 }
 
 static void check_mtcmos_off(void)
 {
-	__clkchk_mtcmos_internal(CLKCHK_OFF_MODE);
+	__clkchk_clk_internal(off_mtcmos, CLKCHK_OFF_MODE, MTCMOS_TYPE);
 }
 
 static void check_mtcmos_notice(void)
 {
-	__clkchk_mtcmos_internal(CLKCHK_NOTICE_MODE);
+	__clkchk_clk_internal(notice_mtcmos, CLKCHK_NOTICE_MODE, MTCMOS_TYPE);
 }
 
 static int clkchk_syscore_suspend(void)
@@ -452,6 +401,7 @@ int clkchk_init(struct clkchk_cfg_t *cfg)
 {
 	const char * const *c;
 	bool match = false;
+	int ret1 = 0, ret2 = 0, ret3 = 0, ret4 = 0;
 
 	if (cfg == NULL || cfg->compatible == NULL
 		|| cfg->all_clk_names == NULL || cfg->off_pll_names == NULL) {
@@ -471,7 +421,22 @@ int clkchk_init(struct clkchk_cfg_t *cfg)
 	if (!match)
 		return -ENODEV;
 
-	register_syscore_ops(&clkchk_syscore_ops);
+	off_plls = kcalloc(MAX_PLLS, sizeof(struct clk *), GFP_KERNEL);
+	notice_plls = kcalloc(MAX_PLLS, sizeof(struct clk *), GFP_KERNEL);
+	off_mtcmos = kcalloc(MAX_MTCMOS, sizeof(struct clk *), GFP_KERNEL);
+	notice_mtcmos = kcalloc(MAX_MTCMOS, sizeof(struct clk *), GFP_KERNEL);
+	ret1 = __clkchk_clk_init(off_plls, clkchk_cfg->off_pll_names,
+			MAX_PLLS);
+	ret2 = __clkchk_clk_init(notice_plls, clkchk_cfg->notice_pll_names,
+			MAX_PLLS);
+	ret3 = __clkchk_clk_init(off_mtcmos, clkchk_cfg->off_mtcmos_names,
+			MAX_MTCMOS);
+	ret4 = __clkchk_clk_init(notice_mtcmos, clkchk_cfg->notice_mtcmos_names,
+			MAX_MTCMOS);
+	if (!ret1 && !ret2 && !ret3 && !ret4)
+		register_syscore_ops(&clkchk_syscore_ops);
+	else
+		pr_notice("clk register_syscore_ops fail\n");
 
 #ifdef CONFIG_MTK_DEVAPC
 	register_devapc_vio_callback(&devapc_vio_handle);

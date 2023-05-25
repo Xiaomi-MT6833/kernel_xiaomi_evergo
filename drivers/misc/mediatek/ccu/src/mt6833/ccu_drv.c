@@ -321,6 +321,7 @@ static int ccu_open(struct inode *inode, struct file *flip)
 	int ret = 0, i;
 
 	struct ccu_user_s *user;
+	struct CcuMemHandle handle = {0};
 
 	mutex_lock(&g_ccu_device->dev_mutex);
 
@@ -352,6 +353,11 @@ static int ccu_open(struct inode *inode, struct file *flip)
 			ccu_ion_free_import_handle(
 				import_buffer_handle[i]);/*can't in spin_lock*/
 		}
+
+		handle.meminfo.cached = 0;
+		ccu_deallocate_mem(&handle);
+		handle.meminfo.cached = 1;
+		ccu_deallocate_mem(&handle);
 
 		ccu_ion_uninit();
 	}
@@ -407,8 +413,9 @@ static long ccu_compat_ioctl(struct file *flip,
 
 		ptr_power32 = compat_ptr(arg);
 		ptr_power64 = compat_alloc_user_space(sizeof(*ptr_power64));
-		if (ptr_power64 == NULL)
+		if (ptr_power64 == NULL) {
 			return -EFAULT;
+		}
 
 		LOG_DBG("[IOCTL_DBG] (void *)arg: %p\n", (void *)arg);
 		LOG_DBG("[IOCTL_DBG] ptr_power32: %p\n", ptr_power32);
@@ -529,6 +536,9 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 	enum CCU_BIN_TYPE type;
 	struct ccu_run_s ccu_run_info;
 
+	if ((cmd != CCU_IOCTL_WAIT_IRQ) && (cmd != CCU_IOCTL_WAIT_AF_IRQ))
+		mutex_lock(&g_ccu_device->dev_mutex);
+
 	LOG_DBG("%s+, cmd:%d\n", __func__, cmd);
 
 	if ((cmd != CCU_IOCTL_SET_POWER) && (cmd != CCU_IOCTL_FLUSH_LOG) &&
@@ -538,6 +548,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		powert_stat = ccu_query_power_status();
 		if (powert_stat == 0) {
 			LOG_WARN("ccuk: ioctl without powered on\n");
+			mutex_unlock(&g_ccu_device->dev_mutex);
 			return -EFAULT;
 		}
 	}
@@ -552,6 +563,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		if (ret != 0) {
 			LOG_ERR(
 			"[SET_POWER] copy_from_user failed, ret=%d\n", ret);
+			mutex_unlock(&g_ccu_device->dev_mutex);
 			return -EFAULT;
 		}
 		ret = ccu_set_power(&power);
@@ -677,17 +689,24 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 			(void *)arg, sizeof(struct ccu_control_info));
 		if (ret != 0) {
 			LOG_ERR(
-			"CCU_IOCTL_IPC_SEND_CMD copy_to_user failed: %d\n",
+			"CCU_IOCTL_IPC_SEND_CMD copy_from_user failed: %d\n",
 			ret);
 			kfree(indata);
 			kfree(outdata);
 			break;
 		}
-
+		if (msg.inDataSize > CCU_IPC_IBUF_CAPACITY) {
+			LOG_ERR(
+			"CCU_IOCTL_IPC_SEND_CMD copy_from_user 2 oversize\n");
+			ret = -EINVAL;
+			kfree(indata);
+			kfree(outdata);
+			break;
+		}
 		ret = copy_from_user(indata, (void *)msg.inDataPtr, msg.inDataSize);
 		if (ret != 0) {
 			LOG_ERR(
-			"CCU_IOCTL_IPC_SEND_CMD copy_to_user 2 failed: %d\n",
+			"CCU_IOCTL_IPC_SEND_CMD copy_from_user 2 failed: %d\n",
 			ret);
 			kfree(indata);
 			kfree(outdata);
@@ -697,7 +716,14 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		msg.feature_type,
 		(enum IMGSENSOR_SENSOR_IDX)msg.sensor_idx,
 		msg.msg_id, indata, msg.inDataSize, outdata, msg.outDataSize);
-
+		if (msg.outDataSize > CCU_IPC_OBUF_CAPACITY) {
+			LOG_ERR(
+			"CCU_IOCTL_IPC_SEND_CMD copy_to_user oversize\n");
+			ret = -EINVAL;
+			kfree(indata);
+			kfree(outdata);
+			break;
+		}
 		ret = copy_to_user((void *)msg.outDataPtr, outdata, msg.outDataSize);
 		kfree(indata);
 		kfree(outdata);
@@ -810,8 +836,10 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 	case CCU_READ_REGISTER:
 	{
 		int regToRead = (int)arg;
+		int rc = ccu_read_info_reg(regToRead);
 
-		return ccu_read_info_reg(regToRead);
+		mutex_unlock(&g_ccu_device->dev_mutex);
+		return rc;
 	}
 
 	case CCU_WRITE_REGISTER:
@@ -953,6 +981,7 @@ static long ccu_ioctl(struct file *flip, unsigned int cmd,
 		powert_stat = ccu_query_power_status();
 		if (type == 0 && powert_stat == 0) {
 			LOG_WARN("ccuk: ioctl without powered on\n");
+			mutex_unlock(&g_ccu_device->dev_mutex);
 			return -EFAULT;
 		}
 		ret = ccu_load_bin(g_ccu_device, type);
@@ -1025,6 +1054,9 @@ EXIT:
 			current->comm, current->pid, current->tgid);
 	}
 
+	if ((cmd != CCU_IOCTL_WAIT_IRQ) && (cmd != CCU_IOCTL_WAIT_AF_IRQ))
+		mutex_unlock(&g_ccu_device->dev_mutex);
+
 	return ret;
 }
 
@@ -1032,7 +1064,7 @@ static int ccu_release(struct inode *inode, struct file *flip)
 {
 	struct ccu_user_s *user = flip->private_data;
 	int i = 0;
-	struct CcuMemHandle handle;
+	struct CcuMemHandle handle = {0};
 
 	mutex_lock(&g_ccu_device->dev_mutex);
 

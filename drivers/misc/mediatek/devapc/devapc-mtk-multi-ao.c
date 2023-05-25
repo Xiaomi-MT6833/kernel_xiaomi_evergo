@@ -123,6 +123,10 @@ static void sramrom_vio_handler(void)
 	else if (sramrom_vio == ROM_VIOLATION)
 		pr_info(PFX "%s, ROM violation is triggered\n", __func__);
 	else {
+		pr_info(PFX "sramrom_vio:0x%x, sramrom_vio_sta:0x%zx, vio_addr:0x%x\n",
+				sramrom_vio,
+				sramrom_vio_sta,
+				vio_info->vio_addr);
 		pr_info(PFX "SRAMROM violation is not triggered\n");
 		return;
 	}
@@ -688,6 +692,7 @@ static void start_devapc(void)
 	void __iomem *pd_apc_con_reg;
 	uint32_t vio_shift_sta;
 	int slave_type, i, vio_idx, index;
+	uint32_t retry = RETRY_COUNT;
 
 	print_vio_mask_sta(false);
 	ndevices = mtk_devapc_ctx->soc->ndevices;
@@ -731,15 +736,20 @@ static void start_devapc(void)
 			if ((check_vio_status(slave_type, vio_idx) ==
 					VIOLATION_TRIGGERED) &&
 					clear_vio_status(slave_type, vio_idx)) {
-				pr_warn(PFX "%s, %s:0x%x, %s:0x%x\n",
+				pr_warn(PFX "%s, %s:0x%x, %s:0x%x, %s:%d\n",
 					"clear vio status failed",
 					"slave_type", slave_type,
-					"vio_index", vio_idx);
+					"vio_index", vio_idx,
+					"retry", retry);
 
 				index = i;
 				mtk_devapc_dump_vio_dbg(slave_type, &vio_idx,
 						&index);
-				i = index - 1;
+
+				if (--retry)
+					i = index - 1;
+				else  /* reset retry and continue */
+					retry = RETRY_COUNT;
 			}
 
 			mask_module_irq(slave_type, vio_idx, false);
@@ -988,11 +998,22 @@ static void devapc_ut(uint32_t cmd)
 
 	} else if (cmd == DEVAPC_UT_SRAM_VIO) {
 		if (unlikely(sramrom_base == NULL)) {
-			pr_err(PFX "%s:%d NULL pointer\n", __func__, __LINE__);
-			return;
-		}
+			unsigned int reg;
+			void __iomem *test_va = NULL;
+			phys_addr_t test_pa = 0x0;
 
-		pr_info(PFX "%s, sramrom_base:0x%x\n", __func__,
+			pr_info(PFX "%s sramrom_vio test\n", __func__);
+
+			test_va = ioremap(test_pa, SZ_4K);
+			if (test_va) {
+				pr_info(PFX "%s test_pa:%pa, test_va:0x%px\n",
+							__func__, &test_pa, test_va);
+
+				reg = readl(test_va + RANDOM_OFFSET);
+				pr_info(PFX "%s readl:0x%x\n", __func__, reg);
+			}
+		} else
+			pr_info(PFX "%s, sramrom_base:0x%x\n", __func__,
 				readl(sramrom_base + RANDOM_OFFSET));
 
 		pr_info(PFX "test done, it should generate violation!\n");
@@ -1372,13 +1393,15 @@ int mtk_devapc_probe(struct platform_device *pdev,
 	}
 
 	for (slave_type = 0; slave_type < slave_type_num; slave_type++)
-		pr_debug(PFX "%s:0x%x %s:%pa\n",
+		pr_debug(PFX "%s:0x%x %s:0x%px\n",
 				"slave_type", slave_type,
 				"devapc_pd_base",
 				mtk_devapc_ctx->devapc_pd_base[slave_type]);
 
 	pr_debug(PFX " IRQ:%d\n", mtk_devapc_ctx->devapc_irq);
 
+/* Enable devapc-infra-clock in preloader */
+#ifndef CONFIG_DEVAPC_MT6877
 	/* CCF (Common Clock Framework) */
 	mtk_devapc_ctx->devapc_infra_clk = devm_clk_get(&pdev->dev,
 			"devapc-infra-clock");
@@ -1387,6 +1410,7 @@ int mtk_devapc_probe(struct platform_device *pdev,
 		pr_err(PFX "(Infra) Cannot get devapc clock from CCF\n");
 		return -EINVAL;
 	}
+#endif
 
 	proc_create("devapc_dbg", 0664, NULL, &devapc_dbg_fops);
 
@@ -1398,10 +1422,13 @@ int mtk_devapc_probe(struct platform_device *pdev,
 		pr_info(PFX "create SWP sysfs file failed, ret:%d\n", ret);
 #endif
 
+/* Enable devapc-infra-clock in preloader */
+#ifndef CONFIG_DEVAPC_MT6877
 	if (clk_prepare_enable(mtk_devapc_ctx->devapc_infra_clk)) {
 		pr_err(PFX " Cannot enable devapc clock\n");
 		return -EINVAL;
 	}
+#endif
 
 	start_devapc();
 
@@ -1419,7 +1446,10 @@ EXPORT_SYMBOL_GPL(mtk_devapc_probe);
 
 int mtk_devapc_remove(struct platform_device *dev)
 {
+/* devapc-infra-clock is always on */
+#ifndef CONFIG_DEVAPC_MT6877
 	clk_disable_unprepare(mtk_devapc_ctx->devapc_infra_clk);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(mtk_devapc_remove);

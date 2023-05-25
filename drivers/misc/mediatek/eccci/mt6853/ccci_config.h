@@ -57,7 +57,9 @@
 
 /* feature option, always try using platform info first! */
 #ifdef CONFIG_MTK_TINYSYS_SCP_SUPPORT
-//#define FEATURE_SCP_CCCI_SUPPORT
+#ifdef CCCI_PLATFORM_MT6877
+#define FEATURE_SCP_CCCI_SUPPORT
+#endif
 #endif
 /*#define ENABLE_EMI_PROTECTION*/
 /* #define FEATURE_LOW_BATTERY_SUPPORT */
@@ -92,6 +94,6 @@
 #define USING_TX_DONE_KERNEL_THREAD
 
 #define CCCI_USE_DFD_OFFSET_0
-//define CCCI_ENABLE_MPU_MEMORY_API
+
 
 #endif

@@ -27,16 +27,26 @@
 #include "ccci_modem.h"
 #include "ccci_swtp.h"
 #include "ccci_fsm.h"
+//+ bug 661608  kouxin.wt 2021.05.27  add swtp proc
+#include <linux/proc_fs.h>
+static unsigned int swtp_gpio_value=0;
+//- bug 661608  kouxin.wt 2021.05.27  add swtp proc
 
 const struct of_device_id swtp_of_match[] = {
 	{ .compatible = SWTP_COMPATIBLE_DEVICE_ID, },
 	{ .compatible = SWTP1_COMPATIBLE_DEVICE_ID,},
+	{ .compatible = SWTP2_COMPATIBLE_DEVICE_ID,},/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+	{ .compatible = SWTP3_COMPATIBLE_DEVICE_ID,},/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
 	{},
 };
 #define SWTP_MAX_SUPPORT_MD 1
 struct swtp_t swtp_data[SWTP_MAX_SUPPORT_MD];
-static const char rf_name[] = "RF_cable";
-#define MAX_RETRY_CNT 3
+/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+#define MAX_RETRY_CNT 10
+/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+
+//HONGMI-89285, wangchenjun.wt,modify,20210803, modify irq_name to static arry
+static const char * irq_name[MAX_PIN_NUM] = { "swtp-eint", "swtp1-eint", "swtp2-eint", "swtp3-eint" };
 
 static int swtp_send_tx_power(struct swtp_t *swtp)
 {
@@ -53,7 +63,14 @@ static int swtp_send_tx_power(struct swtp_t *swtp)
 	ret = exec_ccci_kern_func_by_md_id(swtp->md_id, ID_UPDATE_TX_POWER,
 		(char *)&swtp->tx_power_mode, sizeof(swtp->tx_power_mode));
 	power_mode = swtp->tx_power_mode;
-	spin_unlock_irqrestore(&swtp->spinlock, flags);
+    /*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+    CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+        "wttest0-swtp->tx_power_mode = %d\n", swtp->tx_power_mode);
+    spin_unlock_irqrestore(&swtp->spinlock, flags);
+    CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+        "%s to MD%d,state=%d,ret=%d wttest\n",
+        __func__, swtp->md_id + 1, power_mode, ret);
+	/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
 
 	if (ret != 0)
 		CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
@@ -99,16 +116,36 @@ static int swtp_switch_state(int irq, struct swtp_t *swtp)
 		swtp->gpio_state[i] = SWTP_EINT_PIN_PLUG_IN;
 
 	swtp->tx_power_mode = SWTP_NO_TX_POWER;
-	for (i = 0; i < MAX_PIN_NUM; i++) {
-		if (swtp->gpio_state[i] == SWTP_EINT_PIN_PLUG_IN) {
-			swtp->tx_power_mode = SWTP_DO_TX_POWER;
-			break;
-		}
-	}
+    /*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+    //CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,"wttest1-swtp->tx_power_mode = %d\n", swtp->tx_power_mode);
+    CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+        "wttest12-swtp-%s>>tx_power_mode = %d,swtp->gpio_state[0]=%d\n", __func__,swtp->tx_power_mode,swtp->gpio_state[0]);
+    CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+        "wttest13-swtp-%s>>tx_power_mode = %d,swtp->gpio_state[1]=%d\n", __func__,swtp->tx_power_mode,swtp->gpio_state[1]);
+    CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+        "wttest14-swtp-%s>>tx_power_mode = %d,swtp->gpio_state[2]=%d\n", __func__,swtp->tx_power_mode,swtp->gpio_state[2]);
+    CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+        "wttest14-swtp-%s>>tx_power_mode = %d,swtp->gpio_state[3]=%d\n", __func__,swtp->tx_power_mode,swtp->gpio_state[3]);
 
-	inject_pin_status_event(swtp->tx_power_mode, rf_name);
+    if ((swtp->gpio_state[0] == SWTP_EINT_PIN_PLUG_IN)&&(swtp->gpio_state[1] == SWTP_EINT_PIN_PLUG_IN)&&(swtp->gpio_state[2] == SWTP_EINT_PIN_PLUG_OUT)&&(swtp->gpio_state[3] == SWTP_EINT_PIN_PLUG_OUT))
+    {
+        swtp->tx_power_mode = SWTP_DO_TX_POWER;
+        CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+            "wttest15-swtp-%s>>tx_power_mode =SWTP_DO_TX_POWER= %d\n", __func__,swtp->tx_power_mode);
+    }
+    else
+    {
+        swtp->tx_power_mode = SWTP_NO_TX_POWER;
+        CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,
+            "wttest16-swtp-%s>>tx_power_mode =SWTP_NO_TX_POWER= %d\n", __func__,swtp->tx_power_mode);
+    }
 	spin_unlock_irqrestore(&swtp->spinlock, flags);
+    //CCCI_LEGACY_ERR_LOG(swtp->md_id, SYS,"wttest4-swtp->tx_power_mode = %d\n", swtp->tx_power_mode);
+    /*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
 
+	//+ bug 661608  kouxin.wt 2021.05.27  add swtp proc
+    swtp_gpio_value = !(swtp->tx_power_mode);
+    //- bug 661608  kouxin.wt 2021.05.27  add swtp proc
 	return swtp->tx_power_mode;
 }
 
@@ -184,9 +221,37 @@ int swtp_md_tx_power_req_hdlr(int md_id, int data)
 
 	return 0;
 }
+//+ bug 661608  kouxin.wt 2021.05.27  add swtp proc
+	static int swtp_gpio_show(struct seq_file *m, void *v)
+	{
+		seq_printf(m,"%d\n", swtp_gpio_value);
+		return 0;
+	}
 
-int swtp_init(int md_id)
+	static int swtp_gpio_proc_open(struct inode *inode, struct file *file)
+	{
+		return single_open(file, swtp_gpio_show, NULL);
+	}
+
+	static const struct file_operations swtp_gpio_fops = {
+		.open    = swtp_gpio_proc_open,
+		.read    = seq_read,
+		.llseek  = seq_lseek,
+		.release = single_release,
+	};
+
+	static void swtp_gpio_create_proc(void)
+	{
+		proc_create("swtp_status_value", 0444, NULL, &swtp_gpio_fops);
+	}
+//-bug 661608  kouxin.wt 2021.05.27  add swtp proc
+
+static void swtp_init_delayed_work(struct work_struct *work)
+
 {
+	struct swtp_t *swtp = container_of(to_delayed_work(work),
+		struct swtp_t, init_delayed_work);
+	int md_id;
 	int i, ret = 0;
 #ifdef CONFIG_MTK_EIC
 	u32 ints[2] = { 0, 0 };
@@ -196,16 +261,22 @@ int swtp_init(int md_id)
 	u32 ints1[2] = { 0, 0 };
 	struct device_node *node = NULL;
 
-	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
-		CCCI_LEGACY_ERR_LOG(-1, SYS,
-			"invalid md_id = %d\n", md_id);
-		return -1;
-	}
-	swtp_data[md_id].md_id = md_id;
-	INIT_DELAYED_WORK(&swtp_data[md_id].delayed_work, swtp_tx_delayed_work);
-	swtp_data[md_id].tx_power_mode = SWTP_NO_TX_POWER;
+	CCCI_NORMAL_LOG(-1, SYS, "%s start\n", __func__);
+	CCCI_BOOTUP_LOG(-1, SYS, "%s start\n", __func__);
 
-	spin_lock_init(&swtp_data[md_id].spinlock);
+	if (!swtp) {
+		ret = -1;
+		goto SWTP_INIT_END;
+	}
+	md_id = swtp->md_id;
+
+
+	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
+		ret = -2;
+		CCCI_LEGACY_ERR_LOG(-1, SYS,
+			"%s: invalid md_id = %d\n", __func__, md_id);
+		goto SWTP_INIT_END;
+	}
 
 	for (i = 0; i < MAX_PIN_NUM; i++)
 		swtp_data[md_id].gpio_state[i] = SWTP_EINT_PIN_PLUG_OUT;
@@ -242,12 +313,11 @@ int swtp_init(int md_id)
 				swtp_data[md_id].setdebounce[i]);
 			swtp_data[md_id].eint_type[i] = ints1[1];
 			swtp_data[md_id].irq[i] = irq_of_parse_and_map(node, 0);
-
 			ret = request_irq(swtp_data[md_id].irq[i],
 				swtp_irq_handler, IRQF_TRIGGER_NONE,
-				(i == 0 ? "swtp0-eint" : "swtp1-eint"),
-				&swtp_data[md_id]);
-			if (ret) {
+            irq_name[i], &swtp_data[md_id]);  //HONGMI-89285, wangchenjun.wt,modify,20210803, modify irq_name to static arry
+			/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+            if (ret) {
 				CCCI_LEGACY_ERR_LOG(md_id, SYS,
 					"swtp%d-eint IRQ LINE NOT AVAILABLE\n",
 					i);
@@ -257,12 +327,49 @@ int swtp_init(int md_id)
 			CCCI_LEGACY_ERR_LOG(md_id, SYS,
 				"%s:can't find swtp%d compatible node\n",
 				__func__, i);
-			ret = -1;
+			ret = -3;
 		}
 	}
 	register_ccci_sys_call_back(md_id, MD_SW_MD1_TX_POWER_REQ,
 		swtp_md_tx_power_req_hdlr);
 
-	return ret;
+		//+bug 661608  kouxin.wt 2021.05.27  add swtp proc
+		swtp_gpio_create_proc();
+        //-bug 661608  kouxin.wt 2021.05.27  add swtp proc
+
+
+SWTP_INIT_END:
+	CCCI_BOOTUP_LOG(md_id, SYS, "%s end: ret = %d\n", __func__, ret);
+	CCCI_NORMAL_LOG(md_id, SYS, "%s end: ret = %d\n", __func__, ret);
+
+	return;
+
 }
 
+int swtp_init(int md_id)
+{
+	/* parameter check */
+	if (md_id < 0 || md_id >= SWTP_MAX_SUPPORT_MD) {
+		CCCI_LEGACY_ERR_LOG(-1, SYS,
+			"%s: invalid md_id = %d\n", __func__, md_id);
+		return -1;
+	}
+	/* init woke setting */
+	swtp_data[md_id].md_id = md_id;
+
+	INIT_DELAYED_WORK(&swtp_data[md_id].init_delayed_work,
+		swtp_init_delayed_work);
+	/* tx work setting */
+	INIT_DELAYED_WORK(&swtp_data[md_id].delayed_work,
+		swtp_tx_delayed_work);
+	swtp_data[md_id].tx_power_mode = SWTP_NO_TX_POWER;
+
+	spin_lock_init(&swtp_data[md_id].spinlock);
+
+	/* schedule init work */
+	schedule_delayed_work(&swtp_data[md_id].init_delayed_work, HZ);
+
+	CCCI_BOOTUP_LOG(md_id, SYS, "%s end, init_delayed_work scheduled\n",
+		__func__);
+	return 0;
+}

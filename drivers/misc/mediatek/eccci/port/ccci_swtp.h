@@ -17,9 +17,13 @@
 /* modify MAX_PIN_NUM/DTS to support more gpio,
  * need to follow SOP for customization.
  */
-#define MAX_PIN_NUM 2
+/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
+#define MAX_PIN_NUM 4
 #define SWTP_COMPATIBLE_DEVICE_ID "mediatek, swtp-eint"
 #define SWTP1_COMPATIBLE_DEVICE_ID "mediatek, swtp1-eint"
+#define SWTP2_COMPATIBLE_DEVICE_ID "mediatek, swtp2-eint"
+#define SWTP3_COMPATIBLE_DEVICE_ID "mediatek, swtp3-eint"
+/*Bug651590 liuchaochao.wt  20210219 Add swtp feature begin*/
 
 
 #define SWTP_EINT_PIN_PLUG_IN	(1)
@@ -38,10 +42,10 @@ struct swtp_t {
 	int	tx_power_mode;
 	spinlock_t		spinlock;
 	struct delayed_work delayed_work;
+	struct delayed_work init_delayed_work;
 };
 /*****************************************************************************/
 /* External API Region called by ccci_swtp object */
 /*****************************************************************************/
-extern void inject_pin_status_event(int pin_value, const char pin_name[]);
 extern int swtp_init(int md_id);
 #endif				/* __SWTP_H__ */

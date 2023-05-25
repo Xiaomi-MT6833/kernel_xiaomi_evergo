@@ -190,6 +190,11 @@ int ccci_fsm_increase_devapc_dump_counter(void)
 	return (++ s_devapc_dump_counter);
 }
 
+void __weak mtk_clear_md_violation(void)
+{
+	CCCI_ERROR_LOG(-1, FSM, "[%s] is not supported!\n", __func__);
+}
+
 /* cmd is not NULL only when reason is ordinary EE */
 static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 	struct ccci_fsm_command *cmd, enum CCCI_EE_REASON reason)
@@ -252,9 +257,7 @@ static void fsm_routine_exception(struct ccci_fsm_ctl *ctl,
 		ccci_md_exception_handshake(ctl->md_id,
 			MD_EX_CCIF_TIMEOUT);
 #if (MD_GENERATION >= 6297)
-#ifndef MTK_EMI_MPU_DISABLE
 		mtk_clear_md_violation();
-#endif
 #endif
 		count = 0;
 		while (count < MD_EX_REC_OK_TIMEOUT/EVENT_POLL_INTEVAL) {

@@ -2583,23 +2583,24 @@ static void set_drb_msg(unsigned char q_num, unsigned short cur_idx,
 #ifdef DPMAIF_DEBUG_LOG
 	unsigned int *temp;
 #endif
+	struct dpmaif_drb_msg msg;
 
-	drb->dtyp = DES_DTYP_MSG;
-	drb->c_bit = 1;
-	drb->packet_len = pkt_len;
-	drb->count_l = count_l;
-	drb->channel_id = channel_id;
+	msg.dtyp = DES_DTYP_MSG;
+	msg.c_bit = 1;
+	msg.packet_len = pkt_len;
+	msg.count_l = count_l;
+	msg.channel_id = channel_id;
 	switch (network_type) {
 	/*case htons(ETH_P_IP):
-	 * drb->network_type = 4;
+	 * msg.network_type = 4;
 	 * break;
 	 *
 	 * case htons(ETH_P_IPV6):
-	 * drb->network_type = 6;
+	 * msg.network_type = 6;
 	 * break;
 	 */
 	default:
-		drb->network_type = 0;
+		msg.network_type = 0;
 		break;
 	}
 #ifdef DPMAIF_DEBUG_LOG
@@ -2608,7 +2609,7 @@ static void set_drb_msg(unsigned char q_num, unsigned short cur_idx,
 		"txq(%d)0x%p: drb message(%d): 0x%x, 0x%x\n",
 		q_num, drb, cur_idx, temp[0], temp[1]);
 #endif
-
+	memcpy(drb, &msg, sizeof(msg));
 }
 
 static void set_drb_payload(unsigned char q_num, unsigned short cur_idx,
@@ -2620,22 +2621,23 @@ static void set_drb_payload(unsigned char q_num, unsigned short cur_idx,
 #ifdef DPMAIF_DEBUG_LOG
 	unsigned int *temp;
 #endif
+	struct dpmaif_drb_pd payload;
 
-	drb->dtyp = DES_DTYP_PD;
+	payload.dtyp = DES_DTYP_PD;
 	if (last_one)
-		drb->c_bit = 0;
+		payload.c_bit = 0;
 	else
-		drb->c_bit = 1;
-	drb->data_len = pkt_size;
-	drb->p_data_addr = data_addr&0xFFFFFFFF;
-	drb->data_addr_ext = (data_addr>>32)&0xFF;
+		payload.c_bit = 1;
+	payload.data_len = pkt_size;
+	payload.p_data_addr = data_addr&0xFFFFFFFF;
+	payload.data_addr_ext = (data_addr>>32)&0xFF;
 #ifdef DPMAIF_DEBUG_LOG
 	temp = (unsigned int *)drb;
 	CCCI_HISTORY_LOG(dpmaif_ctrl->md_id, TAG,
 		"txq(%d)0x%p: drb payload(%d): 0x%x, 0x%x\n",
 		q_num, drb, cur_idx, temp[0], temp[1]);
 #endif
-
+	memcpy(drb, &payload, sizeof(payload));
 }
 
 static void record_drb_skb(unsigned char q_num, unsigned short cur_idx,
@@ -3382,20 +3384,20 @@ static int dpmaif_rx_buf_init(struct dpmaif_rx_queue *rxq)
 	CCCI_HISTORY_LOG(-1, TAG, "pit dma_pool_alloc\n");
 #endif
 #endif
+	if (rxq->pit_base == NULL) {
+		CCCI_ERROR_LOG(-1, TAG, "pit request fail\n");
+		return LOW_MEMORY_PIT;
+	}
 #else
 	CCCI_BOOTUP_LOG(-1, TAG, "Using cacheable PIT memory\r\n");
 	rxq->pit_base = kmalloc((rxq->pit_size_cnt
 			* sizeof(struct dpmaifq_normal_pit)), GFP_KERNEL);
 	if (!rxq->pit_base) {
 		CCCI_ERROR_LOG(-1, TAG, "alloc PIT memory fail\r\n");
-		return -1;
+		return LOW_MEMORY_PIT;
 	}
 	rxq->pit_phy_addr = virt_to_phys(rxq->pit_base);
 #endif
-	if (rxq->pit_base == NULL) {
-		CCCI_ERROR_LOG(-1, TAG, "pit request fail\n");
-		return LOW_MEMORY_PIT;
-	}
 	memset(rxq->pit_base, 0, DPMAIF_DL_PIT_SIZE);
 	/* dpmaif_pit_init(rxq->pit_base, rxq->pit_size_cnt); */
 
@@ -3741,7 +3743,9 @@ int dpmaif_late_init(unsigned char hif_id)
 	for (i = 0; i < DPMAIF_RXQ_NUM; i++) {
 		rx_q = &dpmaif_ctrl->rxq[i];
 		rx_q->index = i;
-		dpmaif_rxq_init(rx_q);
+		ret = dpmaif_rxq_init(rx_q);
+		if (ret < 0)
+			return ret;
 		rx_q->skb_idx = -1;
 	}
 
@@ -3757,7 +3761,10 @@ int dpmaif_late_init(unsigned char hif_id)
 	for (i = 0; i < DPMAIF_TXQ_NUM; i++) {
 		tx_q = &dpmaif_ctrl->txq[i];
 		tx_q->index = i;
-		dpmaif_txq_init(tx_q);
+		ret = dpmaif_txq_init(tx_q);
+		if (ret < 0)
+			return ret;
+
 	}
 
 	/* wakeup source init */
@@ -3796,14 +3803,18 @@ int dpmaif_start(unsigned char hif_id)
 
 	if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_PWRON)
 		return 0;
-	else if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_MIN)
-		dpmaif_late_init(hif_id);
+	else if (dpmaif_ctrl->dpmaif_state == HIFDPMAIF_STATE_MIN) {
+		ret = dpmaif_late_init(hif_id);
+		if (ret < 0)
+			return ret;
+	}
 #ifdef DPMAIF_DEBUG_LOG
 	CCCI_HISTORY_TAG_LOG(-1, TAG, "dpmaif:start\n");
 #endif
 	/* cg set */
 	ccci_set_clk_by_id(1, 1);
 #ifdef MT6297
+
 	ccci_set_clk_by_id(2, 1);
 
 	reg_value = ccci_read32(infra_ao_mem_base, 0);

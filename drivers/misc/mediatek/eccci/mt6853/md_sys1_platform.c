@@ -48,7 +48,11 @@
 #include "md_sys1_platform.h"
 #include "modem_secure_base.h"
 #include "modem_reg_base.h"
+#ifdef CCCI_PLATFORM_MT6877
+#include "ap_md_reg_dump_6877.h"
+#else
 #include "ap_md_reg_dump.h"
+#endif
 #include <devapc_public.h>
 #include "ccci_fsm.h"
 
@@ -152,6 +156,12 @@ static struct devapc_vio_callbacks devapc_test_handle = {
 	.id = INFRA_SUBSYS_MD,
 	.debug_dump_adv = devapc_dump_adv_cb,
 };
+
+void __weak register_devapc_vio_callback(
+		struct devapc_vio_callbacks *viocb)
+{
+	CCCI_ERROR_LOG(-1, TAG, "[%s] is not supported!\n", __func__);
+}
 
 void ccci_md_devapc_register_cb(void)
 {
@@ -519,53 +529,35 @@ void md_cd_lock_modem_clock_src(int locked)
 
 void md_cd_dump_md_bootup_status(struct ccci_modem *md)
 {
-	struct md_sys1_info *md_info = (struct md_sys1_info *)md->private_data;
-	struct md_pll_reg *md_reg = md_info->md_pll_base;
+	struct arm_smccc_res res;
 
-	/*To avoid AP/MD interface delay,
-	 * dump 3 times, and buy-in the 3rd dump value.
-	 */
+	arm_smccc_smc(MTK_SIP_KERNEL_CCCI_CONTROL,
+		MD_POWER_CONFIG, MD_BOOT_STATUS,
+		0, 0, 0, 0, 0, &res);
 
-	ccci_write32(md_reg->md_boot_stats_select, 0, 2);
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
 	CCCI_NOTICE_LOG(md->index, TAG,
-		"md_boot_stats0:0x%X\n",
-		ccci_read32(md_reg->md_boot_stats, 0));
+		"[%s] AP: boot_ret=%lu, boot_status_0=%lX, boot_status_1=%lX\n",
+		__func__, res.a0, res.a1, res.a2);
 
-	ccci_write32(md_reg->md_boot_stats_select, 0, 3);
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	CCCI_NOTICE_LOG(md->index, TAG,
-		"md_boot_stats1:0x%X\n",
-		ccci_read32(md_reg->md_boot_stats, 0));
 }
 
 void md_cd_get_md_bootup_status(
 	struct ccci_modem *md, unsigned int *buff, int length)
 {
-	struct md_sys1_info *md_info = (struct md_sys1_info *)md->private_data;
-	struct md_pll_reg *md_reg = md_info->md_pll_base;
+	struct arm_smccc_res res;
 
-	CCCI_NOTICE_LOG(md->index, TAG, "md_boot_stats len %d\n", length);
+	arm_smccc_smc(MTK_SIP_KERNEL_CCCI_CONTROL,
+		MD_POWER_CONFIG, MD_BOOT_STATUS,
+		0, 0, 0, 0, 0, &res);
 
-	if (length < 2 || buff == NULL) {
-		md_cd_dump_md_bootup_status(md);
-		return;
+	if (buff && (length >= 2)) {
+		buff[0] = (unsigned int)res.a1;
+		buff[1] = (unsigned int)res.a2;
 	}
 
-	ccci_write32(md_reg->md_boot_stats_select, 0, 2);
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	buff[0] = ccci_read32(md_reg->md_boot_stats, 0);
-
-	ccci_write32(md_reg->md_boot_stats_select, 0, 3);
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	ccci_read32(md_reg->md_boot_stats, 0);	/* dummy read */
-	buff[1] = ccci_read32(md_reg->md_boot_stats, 0);
 	CCCI_NOTICE_LOG(md->index, TAG,
-		"md_boot_stats0 / 1:0x%X / 0x%X\n", buff[0], buff[1]);
-
+		"boot_ret=%lu; md_boot_stats0 / 1:0x%lX / 0x%lX\n",
+		res.a0, res.a1, res.a2);
 }
 
 static int dump_emi_last_bm(struct ccci_modem *md)
@@ -643,9 +635,10 @@ void md_cd_dump_debug_register(struct ccci_modem *md)
 
 	md_cd_lock_modem_clock_src(1);
 
+#ifndef DISABLE_MD_DUMP_REGISTER
 	/* This function needs to be cancelled temporarily for bringup*/
 	internal_md_dump_debug_register(md->index);
-
+#endif
 	md_cd_lock_modem_clock_src(0);
 
 }
@@ -815,7 +808,11 @@ static int mtk_ccci_cfg_srclken_o1_on(struct ccci_modem *md)
 
 		val = ccci_read32(hw_info->spm_sleep_base, 8);
 		CCCI_INIT_LOG(-1, TAG, "spm_sleep_base+8: val:0x%x +\n", val);
+#ifdef CCCI_PLATFORM_MT6877
+		val |= 0x1<<15;
+#else
 		val |= 0x1<<21;
+#endif
 		ccci_write32(hw_info->spm_sleep_base, 8, val);
 		val = ccci_read32(hw_info->spm_sleep_base, 8);
 		CCCI_INIT_LOG(-1, TAG, "spm_sleep_base+8: val:0x%x -\n", val);

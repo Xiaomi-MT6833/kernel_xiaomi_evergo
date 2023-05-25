@@ -414,6 +414,7 @@ static int mt6360_fled_set_mode(struct rt_fled_dev *fled,
 		udelay(500);
 		mt6360_global_mode = mode;
 		mt6360_fled_on |= 1 << fi->id;
+		dev_info(fi->dev, "%s FLASHLIGHT_MODE_TORCH\n", __func__);
 		break;
 	case FLASHLIGHT_MODE_FLASH:
 		/* strobe off */
@@ -432,6 +433,7 @@ static int mt6360_fled_set_mode(struct rt_fled_dev *fled,
 		mdelay(5);
 		mt6360_global_mode = mode;
 		mt6360_fled_on |= 1 << fi->id;
+		dev_info(fi->dev, "%s FLASHLIGHT_MODE_FLASH\n", __func__);
 		break;
 	case FLASHLIGHT_MODE_OFF:
 		ret = mt6360_pmu_reg_clr_bits(fi->mpi, MT6360_PMU_FLED_EN,
@@ -441,6 +443,7 @@ static int mt6360_fled_set_mode(struct rt_fled_dev *fled,
 		mt6360_fled_on &= ~(1 << fi->id);
 		if (mt6360_fled_on == 0)
 			mt6360_global_mode = mode;
+		dev_info(fi->dev, "%s FLASHLIGHT_MODE_OFF\n", __func__);
 		break;
 	case FLASHLIGHT_MODE_DUAL_FLASH:
 		if (fi->id == MT6360_FLED2)
@@ -460,6 +463,7 @@ static int mt6360_fled_set_mode(struct rt_fled_dev *fled,
 			break;
 		mt6360_global_mode = mode;
 		mt6360_fled_on |= (BIT(MT6360_FLED1) | BIT(MT6360_FLED2));
+		dev_info(fi->dev, "%s FLASHLIGHT_MODE_DUAL_FLASH\n", __func__);
 		break;
 	case FLASHLIGHT_MODE_DUAL_TORCH:
 		if (fi->id == MT6360_FLED2)
@@ -480,6 +484,7 @@ static int mt6360_fled_set_mode(struct rt_fled_dev *fled,
 		udelay(500);
 		mt6360_global_mode = mode;
 		mt6360_fled_on |= (BIT(MT6360_FLED1) | BIT(MT6360_FLED2));
+		dev_info(fi->dev, "%s FLASHLIGHT_MODE_DUAL_TORCH\n", __func__);
 		break;
 	case FLASHLIGHT_MODE_DUAL_OFF:
 		if (fi->id == MT6360_FLED2)
@@ -490,6 +495,7 @@ static int mt6360_fled_set_mode(struct rt_fled_dev *fled,
 			break;
 		mt6360_fled_on = 0;
 		mt6360_global_mode = FLASHLIGHT_MODE_OFF;
+		dev_info(fi->dev, "%s FLASHLIGHT_MODE_DUAL_OFF\n", __func__);
 		break;
 	default:
 		mutex_unlock(&fled_lock);

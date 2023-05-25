@@ -26,6 +26,8 @@ struct mt6360_chg_platform_data {
 	u32 mivr;
 	u32 cv;
 	u32 ieoc;
+	//Bug651594,chenrui1,wt,ADD,20210629,add recharge volt
+	u32 vrechg;
 	u32 safety_timer;
 	u32 ircmp_resistor;
 	u32 ircmp_vclamp;

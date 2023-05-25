@@ -23,11 +23,7 @@
 #include "include/pmic_api.h"
 #include "include/pmic_api_buck.h"
 
-#if defined(CONFIG_MACH_MT6877)
-#define LP_INIT_SETTING_VERIFIED 0
-#else
 #define LP_INIT_SETTING_VERIFIED 1
-#endif
 
 unsigned int g_pmic_chip_version = 1;
 
@@ -415,7 +411,7 @@ void PMIC_LP_INIT_SETTING(void)
 	/*SODI3*/
 	pmic_buck_vcore_lp(SRCLKEN1, 0, 1, HW_OFF);
 	pmic_buck_vpu_lp(SRCLKEN1, 1, 1, HW_LP);
-	pmic_buck_vproc1_lp(SW, 1, 1, SW_OFF);
+	pmic_buck_vproc1_lp(SRCLKEN0, 1, 1, HW_LP);
 	pmic_buck_vproc2_lp(SW, 1, 1, SW_OFF);
 	pmic_buck_vgpu11_lp(SRCLKEN0, 1, 1, HW_LP);
 	pmic_buck_vgpu12_lp(SW, 1, 1, SW_OFF);
@@ -434,7 +430,7 @@ void PMIC_LP_INIT_SETTING(void)
 	pmic_ldo_vrf18_lp(SRCLKEN1, 0, 1, HW_OFF);
 	pmic_ldo_vio18_lp(SW, 1, 1, SW_ON);
 	pmic_ldo_vefuse_lp(SW, 1, 1, SW_OFF);
-	pmic_ldo_vrf12_lp(SRCLKEN0, 1, 1, HW_LP);
+	pmic_ldo_vrf12_lp(SW, 1, 1, SW_ON);
 	pmic_ldo_vrfck_lp(SRCLKEN14, 1, 1, HW_OFF);
 	pmic_ldo_va12_lp(SRCLKEN0, 1, 1, HW_LP);
 	pmic_ldo_va09_lp(SRCLKEN1, 1, 1, HW_LP);
@@ -457,7 +453,7 @@ void PMIC_LP_INIT_SETTING(void)
 	/*Deepidle*/
 	pmic_buck_vcore_lp(SRCLKEN1, 0, 1, HW_OFF);
 	pmic_buck_vpu_lp(SRCLKEN1, 1, 1, HW_LP);
-	pmic_buck_vproc1_lp(SW, 1, 1, SW_OFF);
+	pmic_buck_vproc1_lp(SRCLKEN2, 1, 1, HW_LP);
 	pmic_buck_vproc2_lp(SW, 1, 1, SW_OFF);
 	pmic_buck_vgpu11_lp(SRCLKEN2, 1, 1, HW_LP);
 	pmic_buck_vgpu12_lp(SW, 1, 1, SW_OFF);
@@ -476,7 +472,7 @@ void PMIC_LP_INIT_SETTING(void)
 	pmic_ldo_vrf18_lp(SRCLKEN1, 0, 1, HW_OFF);
 	pmic_ldo_vio18_lp(SW, 1, 1, SW_ON);
 	pmic_ldo_vefuse_lp(SW, 1, 1, SW_OFF);
-	pmic_ldo_vrf12_lp(SRCLKEN2, 1, 1, HW_LP);
+	pmic_ldo_vrf12_lp(SW, 1, 1, SW_ON);
 	pmic_ldo_vrfck_lp(SRCLKEN14, 1, 1, HW_OFF);
 	pmic_ldo_va12_lp(SRCLKEN2, 1, 1, HW_LP);
 	pmic_ldo_va09_lp(SRCLKEN1, 1, 1, HW_LP);

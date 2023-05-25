@@ -909,6 +909,11 @@ static void SCP_sensorHub_init_sensor_state(void)
 
 	mSensorState[SENSOR_TYPE_SAR].sensorType = SENSOR_TYPE_SAR;
 	mSensorState[SENSOR_TYPE_SAR].timestamp_filter = false;
+
+#ifdef CONFIG_MTK_ULTRASND_PROXIMITY
+       mSensorState[SENSOR_TYPE_ELLIPTIC_FUSION].sensorType = SENSOR_TYPE_ELLIPTIC_FUSION;
+       mSensorState[SENSOR_TYPE_ELLIPTIC_FUSION].timestamp_filter = false;
+#endif
 }
 
 static void init_sensor_config_cmd(struct ConfigCmd *cmd,

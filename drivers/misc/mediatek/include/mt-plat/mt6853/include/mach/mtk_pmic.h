@@ -18,11 +18,7 @@
 
 #define LOW_POWER_LIMIT_LEVEL_1 15
 
-#if defined(CONFIG_MACH_MT6877)
-#define PT_DLPT_BRINGUP 1
-#else
 #define PT_DLPT_BRINGUP 0
-#endif
 
 #if defined(CONFIG_FPGA_EARLY_PORTING) || PT_DLPT_BRINGUP
 /* Define for disable low battery protect feature,
@@ -53,9 +49,16 @@
 #define POWER_UVLO_VOLT_LEVEL 2600
 #define IMAX_MAX_VALUE 5500
 
+#ifdef LOW_BATTERY_PT_SETTING_V2
+#define POWER_INT0_VOLT 3300
+#define POWER_INT1_VOLT 3100
+#define POWER_INT2_VOLT 2900
+#define POWER_INT3_VOLT 2700
+#else
 #define POWER_INT0_VOLT 3400
 #define POWER_INT1_VOLT 3250
 #define POWER_INT2_VOLT 3100
+#endif
 
 #define POWER_INT0_VOLT_EXT 3550
 #define POWER_INT1_VOLT_EXT 3400

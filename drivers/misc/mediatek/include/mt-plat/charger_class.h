@@ -141,6 +141,8 @@ struct charger_ops {
 	/* charger type detection */
 	int (*enable_chg_type_det)(struct charger_device *dev, bool en);
 
+	/* QC20 rerun apsd */
+	int (*rerun_apsd)(struct charger_device *dev, bool en);
 	/* run AICL */
 	int (*run_aicl)(struct charger_device *dev, u32 *uA);
 
@@ -175,6 +177,7 @@ struct charger_ops {
 	int (*enable_hz)(struct charger_device *dev, bool en);
 
 	int (*enable_bleed_discharge)(struct charger_device *dev, bool en);
+	int (*set_vrechg)(struct charger_device *dev, u32 uv);
 };
 
 static inline void *charger_dev_get_drvdata(
@@ -258,6 +261,8 @@ extern int charger_dev_enable_safety_timer(
 	struct charger_device *charger_dev, bool en);
 extern int charger_dev_enable_chg_type_det(
 	struct charger_device *charger_dev, bool en);
+extern int charger_dev_rerun_apsd(
+	struct charger_device *charger_dev, bool en);
 extern int charger_dev_enable_otg(
 	struct charger_device *charger_dev, bool en);
 extern int charger_dev_enable_discharge(
@@ -274,6 +279,9 @@ extern int charger_dev_safety_check(
 	struct charger_device *charger_dev, u32 polling_ieoc);
 extern int charger_dev_enable_hz(
 	struct charger_device *charger_dev, bool en);
+extern int charger_dev_set_vrechg(
+	struct charger_device *charger_dev, u32 uv);
+
 
 /* PE+/PE+2.0 */
 extern int charger_dev_send_ta_current_pattern(

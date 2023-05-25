@@ -105,6 +105,12 @@ extern int charger_manager_enable_charging(
 	struct charger_consumer *consumer,
 	int idx,
 	bool en);
+/* +Extb HONGMI-84891,caijiaqi.wt,20210808,ADD,modifiy input_suspend for running test*/
+extern int charger_manager_enable_hz(
+	struct charger_consumer *consumer,
+	int idx,
+	bool en);
+/* -Extb HONGMI-84891,caijiaqi.wt,20210808,ADD,modifiy input_suspend for running test*/
 extern int charger_manager_get_zcv(
 	struct charger_consumer *consumer,
 	int idx,
@@ -116,5 +122,11 @@ extern int mtk_chr_is_charger_exist(unsigned char *exist);
 extern bool is_power_path_supported(void);
 extern int charger_get_vbus(void);
 extern bool mt_charger_plugin(void);
+extern int charger_manager_pd_is_online(void);
+/* +Extb HONGMI-84869,wangbin wt.ADD,20210623,add charge control limit*/
+extern int charger_manager_get_prop_system_temp_level(void);
+extern int charger_manager_get_prop_system_temp_level_max(void);
+extern void charger_manager_set_prop_system_temp_level(int temp_level);
+/* -Extb HONGMI-84869,wangbin wt.ADD,20210623,add charge control limit*/
 
 #endif /* __MTK_CHARGER_H__ */

@@ -9,9 +9,6 @@
 /* reset recovery feature kernel option*/
 #define CFG_RECOVERY_SUPPORT
 
-/* adsp platform configs*/
-#define ADSP_EMI_PROTECTION_ENABLE       (1)
-
 /* adsp feature PRI list */
 /* The higher number, higher priority */
 enum adsp_feature_pri {
@@ -55,6 +52,7 @@ enum adsp_feature_id {
 	A2DP_PLAYBACK_FEATURE_ID	= 18,
 	KTV_FEATURE_ID			= 19,
 	CAPTURE_RAW_FEATURE_ID		= 20,
+	FM_ADSP_FEATURE_ID		= 21,
 	ADSP_NUM_FEATURE_ID,
 };
 

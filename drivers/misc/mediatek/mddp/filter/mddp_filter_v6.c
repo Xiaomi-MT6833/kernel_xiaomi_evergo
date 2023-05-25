@@ -46,7 +46,7 @@ static inline void ipv6_addr_copy(
 	memcpy(a1, a2, sizeof(struct in6_addr));
 }
 
-static int mddp_f_max_router = MD_DIRECT_TETHERING_RULE_NUM;
+static int mddp_f_max_router = 10 * MD_DIRECT_TETHERING_RULE_NUM;
 static struct kmem_cache *mddp_f_router_tuple_cache;
 
 static spinlock_t mddp_f_router_tuple_lock;
@@ -127,6 +127,7 @@ static void mddp_f_timeout_router_tuple(unsigned long data)
 		mddp_f_del_router_tuple_w_unlock(t, flag);
 	else {
 		t->is_need_tag = true;
+		t->last_cnt = t->curr_cnt;
 
 		MDDP_F_ROUTER_TUPLE_UNLOCK(&mddp_f_router_tuple_lock, flag);
 
@@ -976,12 +977,6 @@ out:
 static uint32_t mddp_nfhook_prerouting_v6
 (void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
 {
-	if (mddp_f_suspend_s == 1)
-		return NF_ACCEPT;
-
-	if (!mddp_is_acted_state(MDDP_APP_TYPE_ALL))
-		return NF_ACCEPT;
-
 	if (unlikely(!state->in || !skb->dev || !skb_mac_header_was_set(skb))) {
 		MDDP_F_LOG(MDDP_LL_DEBUG,
 			"%s: Invalid param, in(%p), dev(%p), mac(%d)!\n",
@@ -1013,9 +1008,6 @@ static uint32_t mddp_nfhook_prerouting_v6
 static uint32_t mddp_nfhook_postrouting_v6
 (void *priv, struct sk_buff *skb, const struct nf_hook_state *state)
 {
-	if (!mddp_is_acted_state(MDDP_APP_TYPE_ALL))
-		return NF_ACCEPT;
-
 	if (unlikely(!state->out || !skb->dev ||
 				(skb_headroom(skb) < ETH_HLEN))) {
 		MDDP_F_LOG(MDDP_LL_DEBUG,

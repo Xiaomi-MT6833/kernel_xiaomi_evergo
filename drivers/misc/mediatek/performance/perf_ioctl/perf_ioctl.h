@@ -80,6 +80,14 @@ struct _EARA_NN_PACKAGE {
 	};
 };
 
+#define EARASYS_MAX_SIZE 27
+struct _EARA_SYS_PACKAGE {
+	union {
+		__s32 cmd;
+		__s32 data[EARASYS_MAX_SIZE];
+	};
+};
+
 enum  {
 	USAGE_DEVTYPE_CPU  = 0,
 	USAGE_DEVTYPE_GPU  = 1,
@@ -93,6 +101,7 @@ enum  {
 #define FPSGO_DEQUEUE                _IOW('g', 3,  struct _FPSGO_PACKAGE)
 #define FPSGO_VSYNC                  _IOW('g', 5,  struct _FPSGO_PACKAGE)
 #define FPSGO_TOUCH                  _IOW('g', 10, struct _FPSGO_PACKAGE)
+#define FPSGO_SWAP_BUFFER            _IOW('g', 14, struct _FPSGO_PACKAGE)
 #define FPSGO_QUEUE_CONNECT          _IOW('g', 15, struct _FPSGO_PACKAGE)
 #define FPSGO_BQID                   _IOW('g', 16, struct _FPSGO_PACKAGE)
 
@@ -100,6 +109,9 @@ enum  {
 #define EARA_NN_END                 _IOW('g', 2, struct _EARA_NN_PACKAGE)
 #define EARA_GETUSAGE               _IOW('g', 3, struct _EARA_NN_PACKAGE)
 #define EARA_GETSTATE               _IOW('g', 4, struct _EARA_NN_PACKAGE)
+
+#define EARA_GETINDEX                _IOW('g', 1, struct _EARA_SYS_PACKAGE)
+#define EARA_COLLECT                 _IOW('g', 2, struct _EARA_SYS_PACKAGE)
 
 #endif
 

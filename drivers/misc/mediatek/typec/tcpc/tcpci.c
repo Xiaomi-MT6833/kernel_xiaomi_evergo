@@ -516,6 +516,8 @@ int tcpci_notify_typec_state(struct tcpc_device *tcpc)
 	tcp_noti.typec_state.new_state = tcpc->typec_attach_new;
 	tcp_noti.typec_state.rp_level = tcpc->typec_remote_rp_level;
 
+        tcp_noti.typec_state.cc1 = tcpc->typec_remote_cc[0];
+        tcp_noti.typec_state.cc2 = tcpc->typec_remote_cc[1];
 	ret = tcpc_check_notify_time(tcpc, &tcp_noti,
 		TCP_NOTIFY_IDX_USB, TCP_NOTIFY_TYPEC_STATE);
 	return ret;

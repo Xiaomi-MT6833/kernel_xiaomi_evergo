@@ -166,6 +166,8 @@ struct tcp_ny_typec_state {
 	uint8_t polarity;
 	uint8_t old_state;
 	uint8_t new_state;
+	uint8_t cc1;
+	uint8_t cc2;
 };
 
 enum {
@@ -893,6 +895,9 @@ extern uint8_t tcpm_inquire_pd_data_role(
 extern uint8_t tcpm_inquire_pd_power_role(
 	struct tcpc_device *tcpc_dev);
 
+extern uint8_t tcpm_inquire_pd_state_curr(
+	struct tcpc_device *tcpc_dev);
+
 extern uint8_t tcpm_inquire_pd_vconn_role(
 	struct tcpc_device *tcpc_dev);
 
@@ -1390,6 +1395,12 @@ static inline uint8_t tcpm_inquire_pd_data_role(
 }
 
 static inline uint8_t tcpm_inquire_pd_power_role(
+	struct tcpc_device *tcpc_dev)
+{
+	return 0;
+}
+
+static inline uint8_t tcpm_inquire_pd_state_curr(
 	struct tcpc_device *tcpc_dev)
 {
 	return 0;

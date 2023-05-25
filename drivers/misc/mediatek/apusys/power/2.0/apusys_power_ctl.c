@@ -376,8 +376,14 @@ void apusys_pwr_efficiency_check(void)
 			continue;
 		buck_index = apusys_buck_domain_to_buck[buck_domain_index];
 	for (opp_index = 0;	opp_index < APUSYS_MAX_NUM_OPPS; opp_index++) {
+#ifndef CONFIG_MACH_MT6877
 		if (apusys_opps.opps[opp_index][buck_domain_index].voltage <=
 			apusys_opps.next_buck_volt[buck_index]){
+#else
+		if ((apusys_opps.opps[opp_index][buck_domain_index].voltage <=
+			apusys_opps.next_buck_volt[buck_index]) ||
+			(opp_index == (APUSYS_MAX_NUM_OPPS - 1))) {
+#endif
 			user = apusys_buck_domain_to_user[buck_domain_index];
 			if (user < APUSYS_DVFS_USER_NUM) {
 				if (apusys_opps.is_power_on[user] == false)
@@ -542,7 +548,7 @@ void apusys_frequency_check(void)
 			if (apusys_power_on == false &&
 #ifndef CONFIG_MACH_MT6853
 			apusys_opps.is_power_on[EDMA] == false &&
-#ifndef CONFIG_MACH_MT6873
+#if !defined(CONFIG_MACH_MT6873) && !defined(CONFIG_MACH_MT6877)
 			apusys_opps.is_power_on[EDMA2] == false &&
 #endif
 #endif

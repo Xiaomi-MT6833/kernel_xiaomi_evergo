@@ -176,9 +176,7 @@ struct mutex apu_qos_boost_mtx;
 static void notify_sspm_apusys_on(void)
 {
 	LOG_DEBUG("+\n");
-
-	qos_sram_write(APU_CLK, 1);
-
+	qos_sram_write(APU_CLK, 1); // temp mark
 	LOG_DEBUG("-\n");
 }
 
@@ -188,14 +186,12 @@ static void notify_sspm_apusys_off(void)
 	int bw_nord = 0;
 
 	LOG_DEBUG("+\n");
-
 	qos_sram_write(APU_CLK, 0);
 	while (bw_nord == 0) {
 		bw_nord = qos_sram_read(APU_BW_NORD);
 		udelay(500);
 		LOG_DEBUG("wait SSPM bw_nord");
 	}
-
 	LOG_DEBUG("-\n");
 }
 
@@ -238,8 +234,9 @@ static void qos_timer_func(unsigned long arg)
 
 	/* queue work because mutex sleep must be happened */
 	enque_qos_wq(&qos_work);
-	mod_timer(&counter->qos_timer,
-		jiffies + msecs_to_jiffies(DEFAUTL_QOS_POLLING_TIME));
+	if (timer_pending(&counter->qos_timer))
+		mod_timer(&counter->qos_timer,
+			jiffies + msecs_to_jiffies(DEFAUTL_QOS_POLLING_TIME));
 
 	LOG_DETAIL("-\n");
 }
@@ -1246,11 +1243,11 @@ int apu_cmd_qos_end(uint64_t cmd_id, uint64_t sub_cmd_id)
 }
 EXPORT_SYMBOL(apu_cmd_qos_end);
 
-void apu_qos_counter_init(void)
+void apu_qos_counter_init(struct device *dev)
 {
 }
 
-void apu_qos_counter_destroy(void)
+void apu_qos_counter_destroy(struct device *dev)
 {
 }
 

@@ -2000,6 +2000,50 @@ static signed int fdvt_dump_reg(void)
 
 	log_inf("FDVT DMA Debug Info\n");
 
+	FDVT_WR32(DMA_DEBUG_SEL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFFF00B);
+	FDVT_WR32(FDVT_CTRL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFF1FFF); //0x0098 bit[15:13] = 0
+	log_inf("[FDVT_CTRL]: 0x%08X %08X\n",
+		  (unsigned int)(FDVT_CTRL_HW),
+		  (unsigned int)FDVT_RD32(FDVT_CTRL_REG));
+	log_inf("[FDVT_DEBUG_INFO_2 - %x]: 0x%08X %08X\n", i,
+			(unsigned int)(FDVT_DEBUG_INFO_2_HW),
+			(unsigned int)FDVT_RD32(FDVT_DEBUG_INFO_2_REG));
+
+	FDVT_WR32(DMA_DEBUG_SEL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFFF00C);
+	FDVT_WR32(FDVT_CTRL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFF1FFF); //0x0098 bit[15:13] = 0
+	log_inf("[FDVT_CTRL]: 0x%08X %08X\n",
+		  (unsigned int)(FDVT_CTRL_HW),
+		  (unsigned int)FDVT_RD32(FDVT_CTRL_REG));
+	log_inf("[FDVT_DEBUG_INFO_2 - %x]: 0x%08X %08X\n", i,
+			(unsigned int)(FDVT_DEBUG_INFO_2_HW),
+			(unsigned int)FDVT_RD32(FDVT_DEBUG_INFO_2_REG));
+
+	FDVT_WR32(DMA_DEBUG_SEL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFFF00D);
+	FDVT_WR32(FDVT_CTRL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFF1FFF); //0x0098 bit[15:13] = 0
+	log_inf("[FDVT_CTRL]: 0x%08X %08X\n",
+		  (unsigned int)(FDVT_CTRL_HW),
+		  (unsigned int)FDVT_RD32(FDVT_CTRL_REG));
+	log_inf("[FDVT_DEBUG_INFO_2 - %x]: 0x%08X %08X\n", i,
+			(unsigned int)(FDVT_DEBUG_INFO_2_HW),
+			(unsigned int)FDVT_RD32(FDVT_DEBUG_INFO_2_REG));
+
+	FDVT_WR32(DMA_DEBUG_SEL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFFF00E);
+	FDVT_WR32(FDVT_CTRL_REG,
+		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFF1FFF); //0x0098 bit[15:13] = 0
+	log_inf("[FDVT_CTRL]: 0x%08X %08X\n",
+		  (unsigned int)(FDVT_CTRL_HW),
+		  (unsigned int)FDVT_RD32(FDVT_CTRL_REG));
+	log_inf("[FDVT_DEBUG_INFO_2 - %x]: 0x%08X %08X\n", i,
+			(unsigned int)(FDVT_DEBUG_INFO_2_HW),
+			(unsigned int)FDVT_RD32(FDVT_DEBUG_INFO_2_REG));
+
 	FDVT_WR32(FDVT_CTRL_REG,
 		  ((unsigned int)FDVT_RD32(FDVT_CTRL_REG)) & 0xFFFF1FFF);
 	log_inf("[FDVT_CTRL - %x]: 0x%08X %08X\n", i,

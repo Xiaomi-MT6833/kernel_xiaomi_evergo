@@ -22,12 +22,6 @@
  */
 #define TS_BOOT_T
 
-
-/**
- * disable sv top0 or not
- */
-#define DISABLE_SV_TOP0
-
 #ifndef CONFIG_OF
 extern void mt_irq_set_sens(unsigned int irq, unsigned int sens);
 extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
@@ -68,6 +62,7 @@ extern void mt_irq_set_polarity(unsigned int irq, unsigned int polarity);
 #define ISP_REG_RANGE           (0x8000)
 #define ISPSV_REG_RANGE         (0x1000)
 
+extern unsigned int mt_get_ckgen_freq(int ID);
 /* In order with the suquence of device nodes defined in dtsi */
 /* in dtsi rule, one hw module should mapping to one node. */
 enum ISP_DEV_NODE_ENUM {
@@ -710,7 +705,8 @@ enum ISP_CMD_ENUM {
 	ISP_CMD_ION_MAP_PA, /* AOSP ION: map physical address from fd */
 	ISP_CMD_ION_UNMAP_PA, /* AOSP ION: unmap physical address from fd */
 	ISP_CMD_ION_UNMAP_PA_BY_MODULE,
-	ISP_CMD_ION_GET_PA
+	ISP_CMD_ION_GET_PA,
+	ISP_CMD_SET_VIR_CQCNT
 };
 
 enum ISP_HALT_DMA_ENUM {
@@ -797,6 +793,9 @@ enum ISP_HALT_DMA_ENUM {
 
 #define ISP_NOTE_CQTHR0_BASE                      \
 	_IOWR(ISP_MAGIC, ISP_CMD_NOTE_CQTHR0_BASE, unsigned int*)
+
+#define ISP_SET_VIR_CQCNT \
+	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, unsigned int*)
 
 #define ISP_SET_PM_QOS                           \
 	_IOWR(ISP_MAGIC, ISP_CMD_SET_PM_QOS, unsigned int)
@@ -911,6 +910,12 @@ enum ISP_HALT_DMA_ENUM {
 
 #define COMPAT_ISP_VF_LOG                        \
 	_IOW(ISP_MAGIC, ISP_CMD_VF_LOG, compat_uptr_t)
+
+#define COMPAT_ISP_NOTE_CQTHR0_BASE              \
+	_IOWR(ISP_MAGIC, ISP_CMD_NOTE_CQTHR0_BASE, compat_uptr_t)
+
+#define COMPAT_ISP_SET_VIR_CQCNT                 \
+	_IOWR(ISP_MAGIC, ISP_CMD_SET_VIR_CQCNT, compat_uptr_t)
 
 #define COMPAT_ISP_DUMP_BUFFER                   \
 	_IOWR(ISP_MAGIC,                         \

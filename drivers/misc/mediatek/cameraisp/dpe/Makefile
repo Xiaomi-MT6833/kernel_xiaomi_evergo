@@ -26,6 +26,7 @@ ccflags-$(CONFIG_MTK_IOMMU_V2) += -I$(srctree)/drivers/misc/mediatek/include/mt-
 
 obj-y := cameradpe_dummy.o
 
+
 ifeq ($(CONFIG_MACH_MT6771),y)
   obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_50/camera_dpe.o
 else ifeq ($(CONFIG_MACH_MT6775),y)
@@ -54,6 +55,10 @@ else ifeq ($(CONFIG_MACH_MT6853),y)
   obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/engine_request.o
   obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/camera_dpe.o
   obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/videobuf2-dma-contig.o
+else ifeq ($(CONFIG_MACH_MT6877),y)
+  obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/engine_request.o
+  obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/camera_dpe.o
+  obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/videobuf2-dma-contig.o
 else ifeq ($(CONFIG_MACH_MT6833),y)
   obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/engine_request.o
   obj-$(CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT) += isp_60/camera_dpe.o
@@ -69,6 +74,8 @@ else ifeq ($(CONFIG_MACH_MT6893),y)
 else ifeq ($(CONFIG_MACH_MT6873),y)
   MTK_DPE_VER := 1
 else ifeq ($(CONFIG_MACH_MT6853),y)
+  MTK_DPE_VER := 1
+else ifeq ($(CONFIG_MACH_MT6877),y)
   MTK_DPE_VER := 1
 else ifeq ($(CONFIG_MACH_MT6833),y)
   MTK_DPE_VER := 1

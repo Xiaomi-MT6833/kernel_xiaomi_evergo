@@ -98,9 +98,8 @@ static int __ssc_6739(struct fh_pll_regs *regs,
 	unsigned int updnlmt_val;
 
 	if (rate > 0) {
-		fh_set_field(regs->reg_cfg, data->frddsx_en, 0);
-		fh_set_field(regs->reg_cfg, data->sfstrx_en, 0);
-		fh_set_field(regs->reg_cfg, data->fhctlx_en, 0);
+		/* prevent reg setting value not sync */
+		mb();
 
 		/* Set the relative parameter registers (dt/df/upbnd/downbnd) */
 		fh_set_field(regs->reg_cfg, data->msk_frddsx_dys,
@@ -108,17 +107,19 @@ static int __ssc_6739(struct fh_pll_regs *regs,
 		fh_set_field(regs->reg_cfg, data->msk_frddsx_dts,
 				data->dt_val);
 
-		writel((readl(regs->reg_con_pcw) & data->dds_mask) |
-				data->tgl_org, regs->reg_dds);
+		if (fh_id == FH_ID_MEM_6739)
+			writel((((readl(regs->reg_con_pcw) & 0xFFFFFFFE) >> 11) & data->dds_mask) |
+					data->tgl_org,
+					regs->reg_dds);
+		else
+			writel((readl(regs->reg_con_pcw) & data->dds_mask) |
+					data->tgl_org, regs->reg_dds);
+
 		/* Calculate UPDNLMT */
 		updnlmt_val = PERCENT_TO_DDSLMT((readl(regs->reg_dds) &
 					data->dds_mask), rate) << data->updnlmt_shft;
 
 		writel(updnlmt_val, regs->reg_updnlmt);
-
-		/* Switch to FHCTL_CORE controller - Original design */
-		fh_set_field(regs->reg_hp_en, BIT(fh_id),
-				1);
 
 		if (fh_id == FH_ID_MEM_6739) {
 			unsigned int val;
@@ -139,6 +140,16 @@ static int __ssc_6739(struct fh_pll_regs *regs,
 			writel(val, g_spm_base_6739 + 0x4DC);
 		}
 
+		get_hw_sem_6739();
+		/* make sure hw_sem done */
+		mb();
+		/* 3. switch to hopping control */
+		fh_set_field(regs->reg_hp_en, BIT(fh_id),
+				1);
+		release_hw_sem_6739();
+		/* make sure hw_sem done */
+		mb();
+
 		/* Enable SSC */
 		fh_set_field(regs->reg_cfg, data->frddsx_en, 1);
 		/* Enable Hopping control */
@@ -146,15 +157,22 @@ static int __ssc_6739(struct fh_pll_regs *regs,
 
 	} else {
 		fh_set_field(regs->reg_cfg, data->frddsx_en, 0);
-		fh_set_field(regs->reg_cfg, data->sfstrx_en, 0);
 		fh_set_field(regs->reg_cfg, data->fhctlx_en, 0);
+		/* prevent reg setting value not sync */
+		mb();
 
-		/* Switch to APMIXEDSYS control */
+		get_hw_sem_6739();
+		/* make sure hw_sem done */
+		mb();
+		/* 6. switch to APMIXEDSYS control */
 		fh_set_field(regs->reg_hp_en, BIT(fh_id),
 				0);
+		/* make sure hw_sem done */
+		mb();
+		release_hw_sem_6739();
 
-		/* Wait for DDS to be stable */
-		udelay(30);
+		/* prevent reg setting value not sync */
+		mb();
 	}
 
 	return 0;
@@ -209,7 +227,7 @@ static int ap_hopping_6739(void *priv_data, char *domain_name, int fh_id,
 	/* make sure hw_sem done */
 	mb();
 	/* 3. switch to hopping control */
-	fh_set_field(regs->reg_hp_en, (0x1U << fh_id),
+	fh_set_field(regs->reg_hp_en, BIT(fh_id),
 						1);
 	release_hw_sem_6739();
 	/* make sure hw_sem done */
@@ -521,7 +539,7 @@ static int ap_hopping_v1(void *priv_data, char *domain_name, int fh_id,
 	writel(data->slope1_value, regs->reg_slope1);
 
 	/* 3. switch to hopping control */
-	fh_set_field(regs->reg_hp_en, (0x1U << fh_id),
+	fh_set_field(regs->reg_hp_en, BIT(fh_id),
 						1);
 
 	/* 4. set DFS DDS */
@@ -571,7 +589,7 @@ static int ap_ssc_enable_v1(void *priv_data,
 
 	mutex_lock(lock);
 
-	FHDBG("rate<%d>\n", rate);
+	FHDBG("id<%d>, rate<%d>\n", fh_id, rate);
 
 	domain = d->domain;
 	regs = &domain->regs[fh_id];
@@ -597,7 +615,7 @@ static int ap_ssc_disable_v1(void *priv_data,
 
 	mutex_lock(lock);
 
-	FHDBG("\n");
+	FHDBG("id<%d>\n", fh_id);
 
 	domain = d->domain;
 	regs = &domain->regs[fh_id];
@@ -622,10 +640,11 @@ static int ap_init_v1(struct pll_dts *array, struct match *match)
 	struct fh_pll_data *data;
 	int mask = BIT(fh_id);
 
-	FHDBG("array<%x>,%s %s\n",
+	FHDBG("array<%x>,%s %s, id<%d>\n",
 			array,
 			array->pll_name,
-			array->domain);
+			array->domain,
+			fh_id);
 
 	priv_data = kzalloc(sizeof(*priv_data), GFP_KERNEL);
 	hdlr = kzalloc(sizeof(*hdlr), GFP_KERNEL);
@@ -642,6 +661,7 @@ static int ap_init_v1(struct pll_dts *array, struct match *match)
 	domain = priv_data->domain;
 	regs = &domain->regs[fh_id];
 	data = &domain->data[fh_id];
+
 	fh_set_field(regs->reg_clk_con, mask, 1);
 	fh_set_field(regs->reg_rst_con, mask, 0);
 	fh_set_field(regs->reg_rst_con, mask, 1);
@@ -678,6 +698,11 @@ static struct fh_operation ap_ops_v1 = {
 static struct fh_hdlr ap_hdlr_v1 = {
 	.ops = &ap_ops_v1,
 };
+static struct match mt6877_match = {
+	.name = "mediatek,mt6877-fhctl",
+	.hdlr = &ap_hdlr_v1,
+	.init = &ap_init_v1,
+};
 static struct match mt6853_match = {
 	.name = "mediatek,mt6853-fhctl",
 	.hdlr = &ap_hdlr_v1,
@@ -697,13 +722,13 @@ static struct match mt6739_match = {
 	.init = &ap_init_6739,
 };
 static struct match *matches[] = {
+	&mt6877_match,
 	&mt6853_match,
 	&mt6739_match,
 	NULL,
 };
 
-int fhctl_ap_init(struct platform_device *pdev,
-		struct pll_dts *array)
+int fhctl_ap_init(struct pll_dts *array)
 {
 	int i;
 	int num_pll;

@@ -17,8 +17,7 @@
 #include "clk-fhctl.h"
 #include "clk-fhctl-util.h"
 
-static int (*subsys_init[])(struct platform_device *pdev,
-		struct pll_dts *array) = {
+static int (*subsys_init[])(struct pll_dts *array) = {
 	&fhctl_ap_init,
 #ifdef USE_FHCTL_MCUPM
 	&fhctl_mcupm_init,
@@ -34,7 +33,7 @@ static struct pll_dts *_array;
 static void set_dts_array(struct pll_dts *array) {_array = array; }
 static struct pll_dts *get_dts_array(void) {return _array; }
 
-int mt_dfs_general_pll(int fh_id, int dds)
+int mt_dfs_general_pll(int pll_id, int dds)
 {
 	int i;
 	struct fh_hdlr *hdlr = NULL;
@@ -47,7 +46,7 @@ int mt_dfs_general_pll(int fh_id, int dds)
 	}
 
 	for (i = 0; i < num_pll; i++, array++) {
-		if (fh_id == array->fh_id) {
+		if (pll_id == array->pll_id) {
 			hdlr = array->hdlr;
 			break;
 		}
@@ -106,13 +105,15 @@ int freqhopping_config(unsigned int fh_id
 				array->domain,
 				array->fh_id,
 				8);
+		on = true;
 	} else if (on && !enable) {
 		FHDBG("disable\n");
 		hdlr->ops->ssc_disable(hdlr->data,
 				array->domain,
 				array->fh_id);
+		on = false;
 	} else
-		FHDBG("already %s",
+		FHDBG("already %s\n",
 				on ? "enabled" : "disabled");
 	mutex_unlock(&lock);
 
@@ -128,9 +129,8 @@ int mt_dfs_armpll(int fh_id, int dds)
 EXPORT_SYMBOL(mt_dfs_armpll);
 static struct pll_dts *parse_dt(struct platform_device *pdev)
 {
-	struct device_node *child;
-	struct device_node *root;
-	unsigned int num_pll;
+	struct device_node *root, *map, *of_pll;
+	unsigned int num_pll = 0;
 	int iomap_idx = 0;
 	struct pll_dts *array;
 	int pll_idx = 0;
@@ -139,34 +139,39 @@ static struct pll_dts *parse_dt(struct platform_device *pdev)
 
 	root = pdev->dev.of_node;
 	match = of_match_node(pdev->dev.driver->of_match_table, root);
-	of_property_read_u32(root, "num-pll", &num_pll);
+
+	/* iterate dts to get pll count */
+	for_each_child_of_node(root, map) {
+		for_each_child_of_node(map, of_pll) {
+			num_pll++;
+		}
+	}
+	FHDBG("num_pll<%d>\n", num_pll);
 
 	size = sizeof(*array)*num_pll;
 	array = kzalloc(size, GFP_KERNEL);
-	FHDBG("array<%x>, num_pll<%d>, comp<%s>\n",
+	FHDBG("array<%x>, num_pll<%d>, comp<%s>, sizeof(*array)=%d, size<%d>\n",
 			array, num_pll,
-			match->compatible);
-	for_each_child_of_node(root, child) {
-		struct device_node *m, *n;
+			match->compatible, sizeof(*array), size);
+	for_each_child_of_node(root, map) {
 		void __iomem *fhctl_base, *apmixed_base;
 		char *domain, *method;
 		int num;
 
-		fhctl_base = of_iomap(root, iomap_idx);
-		apmixed_base = of_iomap(root, iomap_idx + 1);
-		of_property_read_string(child, "domain", (const char **)&domain);
-		of_property_read_string(child, "method", (const char **)&method);
+		fhctl_base = of_iomap(root, iomap_idx++);
+		apmixed_base = of_iomap(root, iomap_idx++);
+		of_property_read_string(map, "domain", (const char **)&domain);
+		of_property_read_string(map, "method", (const char **)&method);
 
-		m = child;
 		num = 0;
 		FHDBG("---------------------\n");
-		for_each_child_of_node(m, n) {
+		for_each_child_of_node(map, of_pll) {
 			int fh_id, pll_id;
 			int perms, ssc_rate;
 
 			if (pll_idx >= num_pll) {
 				FHDBG("pll<%s> skipped\n",
-						n->name);
+						of_pll->name);
 				pll_idx++;
 				continue;
 			}
@@ -175,13 +180,13 @@ static struct pll_dts *parse_dt(struct platform_device *pdev)
 			perms = 0xffffffff;
 			ssc_rate = 0;
 
-			of_property_read_u32(n, "fh-id", &fh_id);
-			of_property_read_u32(n, "pll-id", &pll_id);
-			of_property_read_u32(n, "perms", &perms);
-			of_property_read_u32(n, "ssc-rate", &ssc_rate);
+			of_property_read_u32(of_pll, "fh-id", &fh_id);
+			of_property_read_u32(of_pll, "pll-id", &pll_id);
+			of_property_read_u32(of_pll, "perms", &perms);
+			of_property_read_u32(of_pll, "ssc-rate", &ssc_rate);
 			array[pll_idx].num_pll = num_pll;
 			array[pll_idx].comp = (char *)match->compatible;
-			array[pll_idx].pll_name = (char *)n->name;
+			array[pll_idx].pll_name = (char *)of_pll->name;
 			array[pll_idx].fh_id = fh_id;
 			array[pll_idx].pll_id = pll_id;
 			array[pll_idx].perms = perms;
@@ -193,10 +198,9 @@ static struct pll_dts *parse_dt(struct platform_device *pdev)
 			num++;
 			pll_idx++;
 		}
-		iomap_idx++;
 
 		FHDBG("domain<%s>, method<%s>\n", domain, method);
-		FHDBG("base<%x,%x>\n", fhctl_base, apmixed_base);
+		FHDBG("base<%lx,%lx>\n", fhctl_base, apmixed_base);
 		FHDBG("num<%d>\n", num);
 		FHDBG("---------------------\n");
 	}
@@ -211,16 +215,16 @@ static int fh_plt_drv_probe(struct platform_device *pdev)
 	int num_pll;
 	struct pll_dts *array;
 
-	int (**init_call)(struct platform_device *,
-			struct pll_dts *) = subsys_init;
+	int (**init_call)(struct pll_dts *) = subsys_init;
+
+	FHDBG("in\n");
 
 	/* convert dt to data */
 	array = parse_dt(pdev);
-	dev_set_drvdata(&pdev->dev, (void *)array);
 
 	/* init every subsys */
 	while (*init_call != NULL) {
-		(*init_call)(pdev, array);
+		(*init_call)(array);
 		init_call++;
 	}
 
@@ -262,6 +266,7 @@ static void fh_plt_drv_shutdown(struct platform_device *pdev)
 }
 
 static const struct of_device_id fh_of_match[] = {
+	{ .compatible = "mediatek,mt6877-fhctl"},
 	{ .compatible = "mediatek,mt6853-fhctl"},
 	{ .compatible = "mediatek,mt6739-fhctl"},
 	{}

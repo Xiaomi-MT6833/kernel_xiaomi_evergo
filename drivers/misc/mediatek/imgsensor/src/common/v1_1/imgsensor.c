@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2017 MediaTek Inc.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -51,6 +52,7 @@
 #include "imgsensor_oc.h"
 #endif
 #include "imgsensor.h"
+#include "imgsensor_hw_register_info.h"
 
 #if defined(CONFIG_MTK_CAM_SECURE_I2C)
 #include "imgsensor_ca.h"
@@ -60,7 +62,6 @@ static DEFINE_MUTEX(gimgsensor_mutex);
 static DEFINE_MUTEX(gimgsensor_open_mutex);
 
 struct IMGSENSOR gimgsensor;
-MUINT32 last_id;
 
 /******************************************************************************
  * Profiling
@@ -546,6 +547,11 @@ static inline int imgsensor_check_is_alive(struct IMGSENSOR_SENSOR *psensor)
 		err = ERROR_SENSOR_CONNECT_FAIL;
 	} else {
 		PK_DBG("Sensor found ID = 0x%x\n", sensorID);
+		/*begin add for camera's hardware info by sunrey 20210521*/
+		imgsensor_mutex_lock(psensor_inst);
+		imgsensor_sensor_hw_register(psensor,sensorID);
+		imgsensor_mutex_unlock(psensor_inst);
+		/*end add for camera's hardware info by sunrey 20210521*/
 		err = ERROR_NONE;
 	}
 
@@ -593,6 +599,7 @@ int imgsensor_set_driver(struct IMGSENSOR_SENSOR *psensor)
 					psensor_inst->sensor_idx,
 					psensor_inst->psensor_list->name);
 					ret = 0;
+
 					break;
 				}
 			} else {
@@ -697,7 +704,7 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 	PK_DBG("[%s]Entry%d\n", __func__, pSensorGetInfo->SensorId);
 
 	for (i = MSDK_SCENARIO_ID_CAMERA_PREVIEW;
-			i < MSDK_SCENARIO_ID_CUSTOM5;
+			i < MSDK_SCENARIO_ID_CUSTOM15;
 			i++) {
 		imgsensor_sensor_get_info(psensor, i, &info, &config);
 
@@ -731,12 +738,6 @@ static inline int adopt_CAMERA_HW_GetInfo2(void *pBuf)
 	PK_DBG("[CAMERA_HW][VD]w=0x%x, h = 0x%x\n",
 			sensor_resolution.SensorVideoWidth,
 			sensor_resolution.SensorVideoHeight);
-
-	if (pSensorGetInfo->SensorId <= last_id) {
-		memset(mtk_ccm_name, 0, camera_info_size);
-		PK_DBG("memset ok");
-	}
-	last_id = pSensorGetInfo->SensorId;
 
 	/* Add info to proc: camera_info */
 	pmtk_ccm_name = strchr(mtk_ccm_name, '\0');
@@ -2277,6 +2278,7 @@ static void __exit imgsensor_exit(void)
 {
 	platform_driver_unregister(&gimgsensor_platform_driver);
 }
+#define NEED_LATE_INITCALL
 #ifdef NEED_LATE_INITCALL
 	late_initcall(imgsensor_init);
 #else

@@ -1,5 +1,6 @@
 #
 # Copyright (C) 2015 MediaTek Inc.
+# Copyright (C) 2021 XiaoMi, Inc.
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License version 2 as
@@ -19,6 +20,10 @@ ifeq ($(CONFIG_MACH_MT6833),y)
 MTK_DERIVED_PLATFORM := mt6833
 endif
 
+ifeq ($(CONFIG_MACH_MT6877),y)
+MTK_DERIVED_PLATFORM := mt6877
+endif
+
 ARCH_MTK_PROJECT := $(subst ",,$(CONFIG_ARCH_MTK_PROJECT))
 IMGSENSOR_DRIVER_PATH  := $(srctree)/drivers/misc/mediatek/imgsensor/src
 MTK_DRIVER_PATH  := $(srctree)/drivers/misc/mediatek
@@ -27,6 +32,7 @@ subdir-ccflags-y += -I$(IMGSENSOR_DRIVER_PATH)/common/$(COMMON_VERSION) \
 	-I$(MTK_DRIVER_PATH)/mmdvfs \
 	-I$(srctree)/drivers/i2c/busses/
 
+obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_hw_register_info.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor.o
 obj-y				+= ../common/$(COMMON_VERSION)/imgsensor_hw.o
@@ -103,6 +109,10 @@ $(info imgsensor subdir-ccflags-y = $(subdir-ccflags-y))
 
 
 ifeq ($(ARCH_MTK_PROJECT), k6853v1_64_6360_alpha)
+subdir-ccflags-y += -DNEED_LATE_INITCALL
+endif
+
+ifeq ($(CONFIG_MACH_MT6877),y)
 subdir-ccflags-y += -DNEED_LATE_INITCALL
 endif
 

@@ -2413,7 +2413,6 @@ static void imx576_set_lsc_reg_setting(
 	#endif
 	write_cmos_sensor_8(0x0B00, 0x00); /*lsc disable*/
 
-
 }
 
 static void set_imx576_ATR(

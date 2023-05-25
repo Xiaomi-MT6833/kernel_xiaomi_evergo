@@ -85,6 +85,8 @@ int mtk_set_vgpu_power_on_flag(int power_on_id);
 int mtk_set_mt_gpufreq_target(int freq_id);
 
 #ifdef SHADER_PWR_CTL_WA
+void mtk_set_mt_gpufreq_clock_parking_lock(unsigned long *pFlags);
+void mtk_set_mt_gpufreq_clock_parking_unlock(unsigned long *pFlags);
 int mtk_set_mt_gpufreq_clock_parking(int clksrc);
 #endif
 

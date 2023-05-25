@@ -214,7 +214,7 @@ static const char * const hardware_counters_mali_tBEx[] = {
 	"TBEx_VARY_SLOT_32",
 	"TBEx_VARY_SLOT_16",
 	"TBEx_ATTR_INSTR",
-	"TBEx_ARITH_INSTR_FP_MUL",
+	"TBEx_SHADER_CORE_ACTIVE",
 	"TBEx_BEATS_RD_FTC",
 	"TBEx_BEATS_RD_FTC_EXT",
 	"TBEx_BEATS_RD_LSC",

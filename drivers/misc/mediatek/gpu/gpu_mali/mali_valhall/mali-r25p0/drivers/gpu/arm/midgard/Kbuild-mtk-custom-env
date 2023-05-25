@@ -9,6 +9,8 @@ CONFIG_MALI_MIDGARD := y
 CONFIG_MALI_PLATFORM_THIRDPARTY := y
 ifeq ($(CONFIG_MACH_MT6833),y)
 CONFIG_MALI_PLATFORM_THIRDPARTY_NAME := "mt6833"
+else ifeq ($(CONFIG_MACH_MT6877),y)
+CONFIG_MALI_PLATFORM_THIRDPARTY_NAME := "mt6877"
 else
 CONFIG_MALI_PLATFORM_THIRDPARTY_NAME := $(CONFIG_MTK_PLATFORM)
 endif
@@ -46,5 +48,11 @@ ccflags-y += -DGED_ENABLE_DVFS_LOADING_MODE
 endif
 
 # Enable by specific platform
-ccflags-${CONFIG_MACH_MT6853} += -DSHADER_PWR_CTL_WA
+ifeq ($(findstring k6893v1_64_for_6877,$(PROJECT_DTB_NAMES)),k6893v1_64_for_6877)
+	ccflags-y += -DSHADER_PWR_CTL_WA
+else ifeq ($(CONFIG_MACH_MT6877),y)
+	ccflags-y += -DSHADER_PWR_CTL_WA
+endif
 
+# Set default policy always_on
+#ccflags-y += -DMTK_POWER_POLICY_AO

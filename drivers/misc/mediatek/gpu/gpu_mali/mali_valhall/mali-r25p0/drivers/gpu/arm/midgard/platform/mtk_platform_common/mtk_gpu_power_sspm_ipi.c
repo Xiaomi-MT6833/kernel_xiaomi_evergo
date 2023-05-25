@@ -17,11 +17,14 @@
 #include <platform/mtk_mfg_counter.h>
 #include <linux/sched.h>
 #include <linux/mutex.h>
+#include <string.h>
 
 #include "mtk_gpu_power_sspm_ipi.h"
 #include "mali_kbase.h"
 #include "mali_kbase_ioctl.h"
 #include "mali_kbase_vinstr.h"
+#include "mali_kbase_pm_internal.h"
+
 #ifdef CONFIG_MTK_TINYSYS_SSPM_SUPPORT
 #include <sspm_ipi_id.h>
 #include <sspm_define.h>
@@ -33,6 +36,7 @@ static bool ipi_register_flag;
 struct kbase_device *pm_kbdev;
 int gpu_pm_ipi_ackdata;
 
+#include "platform/mtk_platform_common.h"
 
 static DEFINE_MUTEX(gpu_pmu_info_lock);
 static void gpu_send_enable_ipi(unsigned int type, unsigned int enable)
@@ -88,13 +92,47 @@ static void MTKGPUPower_model_kbase_setup(int flag, unsigned int interval_ns) {
 
 void MTKGPUPower_model_sspm_enable(void) {
 	int pm_tool = MTK_get_mtk_pm();
+	int policy_count;
+	int i;
+	const struct kbase_pm_policy *new_policy = NULL;
+	const struct kbase_pm_policy *const *policy_list;
 
-	if (pm_tool == pm_non)
+	if (pm_tool == pm_non) {
 		MTKGPUPower_model_kbase_setup(pm_swpm, 0);
+	}
+	//Get the first device - it doesn't matter in this case
+	pm_kbdev = kbase_find_device(-1);
+	if (!pm_kbdev)
+		return;
 
+	//power always on if gpu sspm enable
+	policy_count = kbase_pm_list_policies(pm_kbdev, &policy_list);
+	new_policy = policy_list[0];
+
+	for (i = 0; i < policy_count; i++) {
+		if (strstr(policy_list[i]->name, "always_on")) {
+			new_policy = policy_list[i];
+			break;
+		}
+	}
+	kbase_pm_set_policy(pm_kbdev, new_policy);
+
+	//enable gpu pm ipi
 	MTKGPUPower_model_kbase_setup(pm_swpm, 0);
 	gpu_send_enable_ipi(GPU_PM_SWITCH, 1);
+	if (mtk_get_vgpu_power_on_flag() == MTK_VGPU_POWER_ON)
+		gpu_send_enable_ipi(GPU_PM_POWER_STATUE, 1);
 	init_flag = gpm_sspm_side;
+
+	//recovery gpu power policy
+	for (i = 0; i < policy_count; i++) {
+		if (strstr(policy_list[i]->name, "coarse_demand")) {
+			new_policy = policy_list[i];
+			break;
+		}
+	}
+	kbase_pm_set_policy(pm_kbdev, new_policy);
+
 }
 
 void MTKGPUPower_model_start(unsigned int interval_ns) {

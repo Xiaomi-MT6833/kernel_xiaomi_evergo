@@ -14,7 +14,12 @@
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/dramc/$(MTK_PLATFORM)/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/v2/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/sspm/$(MTK_PLATFORM)/
+ifeq ($(CONFIG_MACH_MT6877),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/qos/mt6877/
+$(info *GPU QoS 2.0 MT6877)
+else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/qos/$(MTK_PLATFORM)/
+endif
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/include/
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/$(MTK_PLATFORM)/
 

@@ -57,6 +57,11 @@
 static DEFINE_MUTEX(config_ion_buffer_lock_mutex);
 #endif
 
+#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
+#include <trusted_mem_api.h>
+#include <mtk/ion_sec_heap.h>
+#endif
+
 #if ((KERNEL_VERSION(5, 3, 0) <= LINUX_VERSION_CODE) || \
 	(KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE))
 /* Enable workaround for ion for kernels prior to v5.0.0 and from v5.3.0
@@ -600,6 +605,21 @@ unsigned long kbase_mem_evictable_reclaim_count_objects(struct shrinker *s,
 	struct kbase_mem_phy_alloc *alloc;
 	unsigned long pages = 0;
 
+	WARN((sc->gfp_mask & __GFP_ATOMIC),
+        "Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n", sc->gfp_mask);
+	WARN(in_atomic(),
+        "Shrinker called whilst in atomic context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n", sc->gfp_mask);
+	WARN(in_interrupt (),
+        "Shrinker called whilst in interrupt context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n", sc->gfp_mask);
+	/*
+	 * [GPUCORE-27200] WA for scheduling while atomic avoidance
+	 * return 0 while callback is called with GFP_ATOMIC or atomic/interrupt context
+	 */
+	if (unlikely(in_atomic() || in_interrupt() || (sc->gfp_mask & __GFP_ATOMIC))) {
+		return 0;
+	}
+
+
 	kctx = container_of(s, struct kbase_context, reclaim);
 
 	// MTK add to prevent false alarm
@@ -645,6 +665,20 @@ unsigned long kbase_mem_evictable_reclaim_scan_objects(struct shrinker *s,
 	struct kbase_mem_phy_alloc *alloc;
 	struct kbase_mem_phy_alloc *tmp;
 	unsigned long freed = 0;
+
+	WARN((sc->gfp_mask & __GFP_ATOMIC),
+	"Shrinkers cannot be called for GFP_ATOMIC allocations. Check kernel mm for problems. gfp_mask==%x\n", sc->gfp_mask);
+	WARN(in_atomic(),
+	"Shrinker called whilst in atomic context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n", sc->gfp_mask);
+	WARN(in_interrupt (),
+	"Shrinker called whilst in interrupt context. The caller must switch to using GFP_ATOMIC or similar. gfp_mask==%x\n", sc->gfp_mask);
+	/*
+	 * [GPUCORE-27200] WA for scheduling while atomic avoidance
+	 * return 0 while callback is called with GFP_ATOMIC or atomic/interrupt context
+	 */
+	if (unlikely(in_atomic() || in_interrupt() || (sc->gfp_mask & __GFP_ATOMIC))) {
+		return 0;
+	}
 
 	kctx = container_of(s, struct kbase_context, reclaim);
 
@@ -913,6 +947,9 @@ int kbase_mem_flags_change(struct kbase_context *kctx, u64 gpu_addr, unsigned in
 		if (atomic_read(&reg->cpu_alloc->gpu_mappings) > 1)
 			goto out_unlock;
 
+		if (atomic_read(&reg->cpu_alloc->kernel_mappings) > 0)
+			goto out_unlock;
+
 		if (new_needed) {
 			/* Only native allocations can be marked not needed */
 			if (reg->cpu_alloc->type != KBASE_MEM_TYPE_NATIVE) {
@@ -1015,6 +1052,11 @@ int kbase_mem_do_sync_imported(struct kbase_context *kctx,
 	 * GPU and CPU for imported buffers.
 	 */
 	WARN_ON(reg->cpu_alloc != reg->gpu_alloc);
+
+	if (reg->flags & KBASE_REG_PROTECTED) {
+		ret = 0;
+		return ret;
+	}
 
 	/* Currently only handle dma-bufs */
 	if (reg->gpu_alloc->type != KBASE_MEM_TYPE_IMPORTED_UMM)
@@ -1191,17 +1233,42 @@ retry:
 
 	for_each_sg(sgt->sgl, s, sgt->nents, i) {
 		size_t j, pages = PFN_UP(sg_dma_len(s));
+		uint64_t phy_addr = 0;
+
+#ifdef CONFIG_MTK_TRUSTED_MEMORY_SUBSYSTEM
+		if (reg->flags & KBASE_REG_PROTECTED) {
+			u32 sec_handle = sg_dma_address(s);
+			struct dma_buf *dma_buf = reg->gpu_alloc->imported.umm.dma_buf;
+			enum TRUSTED_MEM_REQ_TYPE sec_mem_type =
+				ion_get_trust_mem_type(dma_buf);
+
+			trusted_mem_api_query_pa(
+				sec_mem_type, 0, 0, NULL, &sec_handle, NULL, 0, 0, &phy_addr);
+
+			if (phy_addr == 0) {
+				dev_warn(kctx->kbdev->dev,
+					"can't get PA: sec_mem_type=%d, sec_handle=%llx, phy_addr=%llx\n",
+					sec_mem_type,
+					(unsigned long long)sec_handle,
+					(unsigned long long)phy_addr);
+				err = -EINVAL;
+				goto err_unmap_attachment;
+			}
+		} else
+#endif
+			phy_addr = sg_phys(s);
+
 
 		WARN_ONCE(sg_dma_len(s) & (PAGE_SIZE-1),
 		"sg_dma_len(s)=%u is not a multiple of PAGE_SIZE\n",
 		sg_dma_len(s));
 
-		WARN_ONCE(sg_phys(s) & (PAGE_SIZE-1),
+		WARN_ONCE(phy_addr & (PAGE_SIZE-1),
 		"sg_phys(s)=%llx is not aligned to PAGE_SIZE\n",
-		(unsigned long long) sg_phys(s));
+		(unsigned long long)phy_addr);
 
 		for (j = 0; (j < pages) && (count < reg->nr_pages); j++, count++)
-			*pa++ = as_tagged(sg_phys(s) +
+			*pa++ = as_tagged(phy_addr +
 				(j << PAGE_SHIFT));
 		WARN_ONCE(j < pages,
 		"sg list from dma_buf_map_attachment > dma_buf->size=%zu\n",
@@ -2225,6 +2292,9 @@ int kbase_mem_commit(struct kbase_context *kctx, u64 gpu_addr, u64 new_pages)
 	 */
 	if (atomic_read(&reg->gpu_alloc->gpu_mappings) > 1)
 		goto out_unlock;
+
+	if (atomic_read(&reg->cpu_alloc->kernel_mappings) > 0)
+		goto out_unlock;
 	/* can't grow regions which are ephemeral */
 	if (reg->flags & KBASE_REG_DONT_NEED)
 		goto out_unlock;
@@ -3010,6 +3080,7 @@ static int kbase_vmap_phy_pages(struct kbase_context *kctx,
 	if (map->sync_needed)
 		kbase_sync_mem_regions(kctx, map, KBASE_SYNC_TO_CPU);
 
+	kbase_mem_phy_alloc_kernel_mapped(reg->cpu_alloc);
 	return 0;
 }
 
@@ -3079,6 +3150,7 @@ static void kbase_vunmap_phy_pages(struct kbase_context *kctx,
 	if (map->sync_needed)
 		kbase_sync_mem_regions(kctx, map, KBASE_SYNC_TO_DEVICE);
 
+	kbase_mem_phy_alloc_kernel_unmapped(map->cpu_alloc);
 	map->offset_in_page = 0;
 	map->cpu_pages = NULL;
 	map->gpu_pages = NULL;

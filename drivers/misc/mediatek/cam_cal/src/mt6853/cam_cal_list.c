@@ -20,8 +20,9 @@
 
 struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{OV13B10_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
-	{IMX355_SENSOR_ID, 0xA8, Common_read_region},
-	{OV02B10_SENSOR_ID, 0xA4, Common_read_region},
+	//{IMX355_SENSOR_ID, 0xA2, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{IMX615_SENSOR_ID, 0xA8, Common_read_region, MAX_EEPROM_SIZE_16K},
+	{OV64B_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K},
 	/*Below is commom sensor */
 	{IMX586_SENSOR_ID, 0xA0, Common_read_region, MAX_EEPROM_SIZE_16K,
 		BL24SA64_write_region},
@@ -38,7 +39,19 @@ struct stCAM_CAL_LIST_STRUCT g_camCalList[] = {
 	{S5K2L7_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX398_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX350_SENSOR_ID, 0xA0, Common_read_region},
+
+	{S5KJN1SUNNY_SENSOR_ID, 0XA2, Common_read_region},
+	{OV50C40OFILM_SENSOR_ID, 0XA2, Common_read_region},
+	{OV16A1QOFILM_SENSOR_ID, 0xA2, Common_read_region},
+	{OV16A1QQTECH_SENSOR_ID, 0xA2, Common_read_region},
+	{OV02B10AAC_SENSOR_ID, 0xA4, Common_read_region},
+	{GC02M1OFILM_SENSOR_ID, 0xA4, Common_read_region},
+	{IMX355OFILM_SENSOR_ID, 0xA0, Common_read_region},
+	{IMX355SUNNY_SENSOR_ID, 0XA0, Common_read_region},
+
 	{IMX386_MONO_SENSOR_ID, 0xA0, Common_read_region},
+	{S5KJD1_SENSOR_ID, 0xB0, Common_read_region, DEFAULT_MAX_EEPROM_SIZE_8K,
+		DW9763_write_region},
 	{IMX499_SENSOR_ID, 0xA0, Common_read_region},
 	{IMX481_SENSOR_ID, 0xA4, Common_read_region, DEFAULT_MAX_EEPROM_SIZE_8K,
 		BL24SA64_write_region},

@@ -149,7 +149,9 @@ static int initAF(void)
 
 		s4AF_ReadReg(0x00, &Temp);  //ic info
 		LOG_INF("Check HW version: 0x00 is %x\n", Temp);
-		ret = s4AF_WriteReg(0, 0x02, 0x00); //CONTROL
+		ret = s4AF_WriteReg(0, 0x02, 0x02); //CONTROL
+		ret = s4AF_WriteReg(0, 0x06, 0x40); //CONTROL
+		ret = s4AF_WriteReg(0, 0x07, 0x79); //CONTROL
 
 
 

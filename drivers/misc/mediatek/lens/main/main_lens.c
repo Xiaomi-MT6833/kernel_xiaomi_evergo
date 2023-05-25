@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2015 MediaTek Inc.
+ * Copyright (C) 2021 XiaoMi, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -290,6 +291,11 @@ static void AFRegulatorCtrl(int Stage)
 					"k6833v1_64_6360_alpha", 20) == 0) {
 					regVCAMAF =
 					regulator_get(lens_device, "vmch");
+				} else if ((strncmp(CONFIG_ARCH_MTK_PROJECT,
+					"evergreen", 9) == 0) || (strncmp(CONFIG_ARCH_MTK_PROJECT,
+					"evergo", 6) == 0)) {
+					regVCAMAF =
+					regulator_get(lens_device, "vibr");
 				} else {
 					#if defined(CONFIG_REGULATOR_MT6317)
 					regVCAMAF =
@@ -319,6 +325,9 @@ static void AFRegulatorCtrl(int Stage)
 					regVCAMAF =
 					regulator_get(lens_device, "vcamio");
 				}
+				#elif defined(CONFIG_MACH_MT6877)
+				regVCAMAF =
+					regulator_get(lens_device, "rt5133-ldo3");
 				#elif defined(CONFIG_MACH_MT6885) || defined(CONFIG_MACH_MT6893)
 				if (strncmp(CONFIG_ARCH_MTK_PROJECT,
 					"k6885v1_64_alpha", 16) == 0) {

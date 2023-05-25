@@ -10,6 +10,9 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU General Public License for more details.
  */
+#include <linux/atomic.h>
+#define CLK_COUNT_NUM 15
+static int32_t mdp_clk_count[CLK_COUNT_NUM];
 #include "cmdq_reg.h"
 #include "mdp_common.h"
 #ifdef CMDQ_MET_READY
@@ -790,6 +793,61 @@ int32_t cmdq_mdp_reset_with_mmsys(const uint64_t engineToResetAgain)
 		-1,			/* bit 46 : empty46 */
 		-1,			/* bit 47 : empty47 */
 	};
+	int engineResetBitChange[48] = {
+		CMDQ_ENG_MDP_RDMA0,     /* bit  0 : MDP_RDMA0 */
+		CMDQ_ENG_MDP_TDSHP0,    /* bit  1 : MDP_TDSHP0 */
+		CMDQ_ENG_MDP_CAMIN,     /* bit  2 : img_dl_async0  */
+		CMDQ_ENG_MDP_CAMIN2,    /* bit  3 : img_dl_async1  */
+		CMDQ_ENG_MDP_RDMA1,     /* bit  4 : MDP_RDMA1 */
+		CMDQ_ENG_MDP_TDSHP1,    /* bit  5 : MDP_TDSHP1 */
+		-1,     /* bit  6 : smi0 */
+		-1,     /* bit  7 : apb_bus */
+		CMDQ_ENG_MDP_WROT0,     /* bit  8 : MDP_WROT0 */
+		CMDQ_ENG_MDP_RSZ0,      /* bit  9 : MDP_RSZ0  */
+		CMDQ_ENG_MDP_HDR0,      /* bit 10 : MDP_HDR0 */
+		-1,     /* bit 11 : mdp_mutex0 */
+		CMDQ_ENG_MDP_WROT1,     /* bit 12 : MDP_WROT1 */
+		CMDQ_ENG_MDP_COLOR0,    /* bit 13 : MDP_COLOR0 */
+		-1,                     /* bit 14 : mdp_fake_eng0*/
+		CMDQ_ENG_MDP_AAL0,      /* bit 15 : MDP_AAL0 */
+		CMDQ_ENG_MDP_AAL1,      /* bit 16 : MDP_AAL1 */
+		CMDQ_ENG_MDP_RSZ1,      /* bit 17 : MDP_RSZ1  */
+		-1,     /* bit 18 : MDP_COLOR1  */
+		-1,                     /* bit 19 : empty19 */
+		-1,                     /* bit 20 : empty20 */
+		-1,                     /* bit 21 : empty21 */
+		-1,                     /* bit 22 : empty22 */
+		-1,                     /* bit 23 : empty23 */
+		-1,                     /* bit 24 : empty24 */
+		-1,                     /* bit 25 : empty25  */
+		-1,                     /* bit 26 : empty26 */
+		-1,                     /* bit 27 : empty27 */
+		-1,                     /* bit 28 : empty28 */
+		-1,                     /* bit 29 : empty29 */
+		-1,                     /* bit 30 : empty30 */
+		-1,                     /* bit 31 : empty31 */
+		-1,                     /* bit 32 : empty32 */
+		-1,                     /* bit 33 : empty33 */
+		-1,                     /* bit 34 : empty34 */
+		-1,                     /* bit 35 : empty35 */
+		-1,                     /* bit 36 : empty36 */
+		-1,                     /* bit 37 : empty37 */
+		-1,                     /* bit 38 : empty38 */
+		-1,                     /* bit 39 : empty39 */
+		-1,                     /* bit 40 : empty40 */
+		-1,                     /* bit 41 : empty41 */
+		-1,                     /* bit 42 : empty42 */
+		-1,                     /* bit 43 : empty43 */
+		-1,                     /* bit 44 : empty44 */
+		-1,                     /* bit 45 : empty45 */
+		-1,                     /* bit 46 : empty46 */
+		-1,                     /* bit 47 : empty47 */
+	};
+
+	if (cmdq_dev_get_resetbit_change()) {
+		for (i = 0; i < 48; i++)
+			engineResetBit[i] = engineResetBitChange[i];
+	}
 
 	for (i = 0; i < 32; ++i) {
 		if (engineResetBit[i] < 0)
@@ -1043,64 +1101,93 @@ static void config_port_34bit(enum CMDQ_ENG_ENUM engine)
 
 void cmdq_mdp_enable_clock(bool enable, enum CMDQ_ENG_ENUM engine)
 {
+	int32_t clk_count_idx = -1;
+
 	switch (engine) {
 	case CMDQ_ENG_MDP_CAMIN:
+		clk_count_idx = 1;
 		cmdq_mdp_enable_clock_IMG_DL_ASYNC0(enable);
 		cmdq_mdp_enable_clock_IMG0_IMG_DL_ASYNC0(enable);
 		cmdq_mdp_enable_clock_IMG0_IMG_DL_RELAY0_ASYNC0(enable);
 		break;
 	case CMDQ_ENG_MDP_CAMIN2:
+		clk_count_idx = 2;
 		cmdq_mdp_enable_clock_IMG_DL_ASYNC1(enable);
 		cmdq_mdp_enable_clock_IMG0_IMG_DL_ASYNC1(enable);
 		cmdq_mdp_enable_clock_IMG0_IMG_DL_RELAY1_ASYNC1(enable);
 		break;
 	case CMDQ_ENG_MDP_RDMA0:
+		clk_count_idx = 3;
 		cmdq_mdp_enable_clock_MDP_RDMA0(enable);
 		if (enable)
 			config_port_34bit(CMDQ_ENG_MDP_RDMA0);
 		break;
 	case CMDQ_ENG_MDP_RDMA1:
+		clk_count_idx = 4;
 		cmdq_mdp_enable_clock_MDP_RDMA1(enable);
 		if (enable)
 			config_port_34bit(CMDQ_ENG_MDP_RDMA1);
 		break;
 	case CMDQ_ENG_MDP_RSZ0:
+		clk_count_idx = 5;
 		cmdq_mdp_enable_clock_MDP_RSZ0(enable);
 		break;
 	case CMDQ_ENG_MDP_RSZ1:
+		clk_count_idx = 6;
 		cmdq_mdp_enable_clock_MDP_RSZ1(enable);
 		break;
 	case CMDQ_ENG_MDP_WROT0:
+		clk_count_idx = 7;
 		cmdq_mdp_enable_clock_MDP_WROT0(enable);
 		if (enable)
 			config_port_34bit(CMDQ_ENG_MDP_WROT0);
 		break;
 	case CMDQ_ENG_MDP_WROT1:
+		clk_count_idx = 8;
 		cmdq_mdp_enable_clock_MDP_WROT1(enable);
 		if (enable)
 			config_port_34bit(CMDQ_ENG_MDP_WROT1);
 		break;
 	case CMDQ_ENG_MDP_TDSHP0:
+		clk_count_idx = 9;
 		cmdq_mdp_enable_clock_MDP_TDSHP0(enable);
 		break;
 	case CMDQ_ENG_MDP_TDSHP1:
+		clk_count_idx = 10;
 		cmdq_mdp_enable_clock_MDP_TDSHP1(enable);
 		break;
 	case CMDQ_ENG_MDP_COLOR0:
+		clk_count_idx = 11;
 		cmdq_mdp_enable_clock_MDP_COLOR0(enable);
 		break;
 	case CMDQ_ENG_MDP_HDR0:
+		clk_count_idx = 12;
 		cmdq_mdp_enable_clock_MDP_HDR0(enable);
 		break;
 	case CMDQ_ENG_MDP_AAL0:
+		clk_count_idx = 13;
 		cmdq_mdp_enable_clock_MDP_AAL0(enable);
 		break;
 	case CMDQ_ENG_MDP_AAL1:
+		clk_count_idx = 14;
 		cmdq_mdp_enable_clock_MDP_AAL1(enable);
 		break;
 	default:
+		clk_count_idx = -1;
 		CMDQ_ERR("try to enable unknown mdp clock");
 		break;
+	}
+
+	if (clk_count_idx > 0 && clk_count_idx < CLK_COUNT_NUM) {
+		if (enable)
+			mdp_clk_count[clk_count_idx]++;
+		else {
+			mdp_clk_count[clk_count_idx]--;
+			if (mdp_clk_count[clk_count_idx] < 0)
+				CMDQ_ERR("%s disable mdp_clk_count[%d] %d\n",
+					__func__, clk_count_idx,
+					mdp_clk_count[clk_count_idx]);
+		}
 	}
 }
 
@@ -1961,9 +2048,13 @@ static void cmdq_mdp_enable_common_clock(bool enable)
 		/* Use SMI clock API */
 		smi_bus_prepare_enable(SMI_LARB2, "MDP");
 		cmdq_mdp_enable_clock_APB(enable);
+		mdp_clk_count[0]++;
 		cmdq_mdp_enable_clock_MDP_MUTEX0(enable);
 	} else {
 		/* disable, reverse the sequence */
+		mdp_clk_count[0]--;
+		if (mdp_clk_count[0] < 0)
+			CMDQ_ERR("%s MDP_MUTEX0 disable %d\n", __func__, mdp_clk_count[0]);
 		cmdq_mdp_enable_clock_MDP_MUTEX0(enable);
 		cmdq_mdp_enable_clock_APB(enable);
 		smi_bus_disable_unprepare(SMI_LARB2, "MDP");

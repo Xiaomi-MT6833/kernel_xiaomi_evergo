@@ -736,6 +736,12 @@ static int hf_manager_device_calibration(struct hf_device *device,
 	return 0;
 }
 
+static int hf_manager_device_calibration_leak(struct hf_device *device,
+		uint8_t sensor_type)
+{
+		return device->leak_calibration(device, sensor_type);
+}
+
 static int hf_manager_device_config_cali(struct hf_device *device,
 		uint8_t sensor_type, int32_t *data)
 {
@@ -894,6 +900,10 @@ static int hf_manager_drive_device(struct hf_client *client,
 		break;
 	case HF_MANAGER_SENSOR_ENABLE_CALI:
 		err = hf_manager_device_calibration(device, sensor_type);
+		break;
+         case HF_MANAGER_SENSOR_LEAK:
+                   printk("kaze kernel leak cali");
+		err = hf_manager_device_calibration_leak(device, sensor_type);
 		break;
 	case HF_MANAGER_SENSOR_CONFIG_CALI:
 		err = hf_manager_device_config_cali(device,

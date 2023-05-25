@@ -86,6 +86,7 @@ struct hf_device {
 		int64_t delay, int64_t latency);
 	int (*flush)(struct hf_device *hfdev, int sensor_type);
 	int (*calibration)(struct hf_device *hfdev, int sensor_type);
+	int (*leak_calibration)(struct hf_device *hfdev, int sensor_type);
 	int (*config_cali)(struct hf_device *hfdev,
 		int sensor_type, int32_t *data);
 	int (*selftest)(struct hf_device *hfdev, int sensor_type);

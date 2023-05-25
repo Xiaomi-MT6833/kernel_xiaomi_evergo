@@ -27,6 +27,7 @@ enum {
 	CONFIG_CMD_CFG_DATA     = 3,
 	CONFIG_CMD_CALIBRATE    = 4,
 	CONFIG_CMD_SELF_TEST    = 5,
+	CONFIG_CMD_CALIBRATE_LEAK = 6,
 };
 
 struct ConfigCmd {

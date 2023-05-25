@@ -26,6 +26,7 @@ enum sensorlist {
 	ps,
 	baro,
 	sar,
+	sar_secondary,
 	ois,
 	maxhandle,
 };
@@ -56,6 +57,9 @@ int sensorlist_sensor_to_handle(int sensor)
 	case SENSOR_TYPE_SAR:
 		handle = sar;
 		break;
+	case SENSOR_TYPE_SAR_SECONDARY:
+	         handle = sar_secondary;
+	         break;
 	case SENSOR_TYPE_OIS:
 		handle = ois;
 		break;
@@ -89,6 +93,9 @@ int sensorlist_handle_to_sensor(int handle)
 	case sar:
 		type = SENSOR_TYPE_SAR;
 		break;
+	case sar_secondary:
+	         type = SENSOR_TYPE_SAR_SECONDARY;
+	         break;
 	case ois:
 		type = SENSOR_TYPE_OIS;
 		break;

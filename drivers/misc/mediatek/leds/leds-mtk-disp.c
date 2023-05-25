@@ -21,6 +21,7 @@
 
 #ifdef CONFIG_DRM_MEDIATEK
 extern int mtkfb_set_backlight_level(unsigned int level);
+extern int lcm_get_cur_level(void);
 #endif
 
 #ifdef MET_USER_EVENT_SUPPORT
@@ -190,8 +191,9 @@ static int led_level_disp_set(struct mtk_led_data *s_led,
 int setMaxBrightness(char *name, int percent, bool enable)
 {
 	struct mtk_led_data *led_dat;
-		int max_l = 0, index = -1, limit_l = 0, cur_l = 0;
+		int max_l = 0, index = -1, limit_l = 0, cur_l = 0, last_level;
 
+	last_level = lcm_get_cur_level();
 	index = getLedDespIndex(name);
 	if (index < 0) {
 		pr_notice("can not find leds by led_desp %s", name);
@@ -206,10 +208,10 @@ int setMaxBrightness(char *name, int percent, bool enable)
 		leds_info->leds[index]->name, percent, limit_l, enable);
 	if (enable) {
 		led_dat->conf.max_level = limit_l;
-		cur_l = min(led_dat->last_level, limit_l);
+		cur_l = min(last_level, limit_l);
 	} else if (!enable) {
 		led_dat->conf.max_level = max_l;
-		cur_l = led_dat->last_level;
+		cur_l = last_level;
 	}
 #ifdef CONFIG_LEDS_BRIGHTNESS_CHANGED
 	call_notifier(3, led_dat);

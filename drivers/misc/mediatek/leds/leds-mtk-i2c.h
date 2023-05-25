@@ -16,21 +16,21 @@
  ***************************************************************************/
 #include <linux/leds.h>
 
-extern struct led_conf_info {
-	int level;
+struct led_conf_info {
+	struct led_classdev cdev;
 	int led_bits;
 	int trans_bits;
 	int max_level;
-	struct led_classdev cdev;
-} led_conf_info;
+};
 
-
+int setMaxBrightness(char *name, int percent, bool enable);
+int mt_leds_brightness_set(char *name, int level);
 int mtk_leds_register_notifier(struct notifier_block *nb);
 int mtk_leds_unregister_notifier(struct notifier_block *nb);
-int mt_leds_brightness_set(char *name, int bl_1024);
-int setMaxBrightness(char *name, int percent, bool enable);
 
 extern void disp_pq_notify_backlight_changed(int bl_1024);
 extern int enable_met_backlight_tag(void);
 extern int output_met_backlight_tag(int level);
+extern void _gate_ic_backlight_set(unsigned int level);
+
 

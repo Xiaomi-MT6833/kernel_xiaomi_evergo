@@ -469,7 +469,7 @@ struct thermal_cooling_device *cdev, unsigned long state)
 		/* To trigger data abort to reset the system
 		 * for thermal protection.
 		 */
-		BUG();
+		//BUG();    /* HONGMI-86421, jiangyanjun, delete, 20210606, K16A, replace with system power off  */
 	}
 	return 0;
 }

@@ -106,8 +106,14 @@ static struct wakeup_source scp_suspend_lock;
 static int g_scp_dvfs_init_flag = -1;
 
 static void __iomem *gpio_base;
+
+#if defined(CONFIG_MACH_MT6877)
+#define ADR_GPIO_MODE_OF_SCP_VREQ	(gpio_base + 0x350)
+#define BIT_GPIO_MODE_OF_SCP_VREQ	24
+#else /* !defined(CONFIG_MACH_MT6877) */
 #define ADR_GPIO_MODE_OF_SCP_VREQ	(gpio_base + 0x420)
 #define BIT_GPIO_MODE_OF_SCP_VREQ	4
+#endif /* defined(CONFIG_MACH_MT6877) */
 #define MSK_GPIO_MODE_OF_SCP_VREQ	0x7
 
 #if SCP_VCORE_REQ_TO_DVFSRC
@@ -330,7 +336,7 @@ uint32_t scp_get_freq(void)
 }
 
 #if defined(CONFIG_MACH_MT6877) && !defined(CONFIG_FPGA_EARLY_PORTING)
-static int scp_set_pmic_vcore(unsigned int clk_freq)
+int scp_set_pmic_vcore(unsigned int clk_freq)
 {
 	int ret = 0;
 	unsigned int ret_vc = 0;
@@ -345,9 +351,9 @@ static int scp_set_pmic_vcore(unsigned int clk_freq)
 	} else if (clk_freq == CLK_OPP3) {
 		get_vcore_val = get_vcore_uv_table(VCORE_OPP_1);
 	} else {
-		return = -ENODEV;
 		pr_err("ERROR: %s: clk_freq=%d is not supported\n",
 			__func__, clk_freq);
+		return -ENODEV;
 	}
 
 	if (get_vcore_val != 0) {
@@ -1293,6 +1299,9 @@ void ulposc_cali_init(void)
 #if defined(CONFIG_MACH_MT6833)
 	node = of_find_compatible_node(NULL, NULL,
 			"mediatek,mt6833-apmixedsys");
+#elif defined(CONFIG_MACH_MT6877)
+	node = of_find_compatible_node(NULL, NULL,
+			"mediatek,mt6877-apmixedsys");
 #else
 	node = of_find_compatible_node(NULL, NULL,
 			"mediatek,mt6853-apmixedsys");

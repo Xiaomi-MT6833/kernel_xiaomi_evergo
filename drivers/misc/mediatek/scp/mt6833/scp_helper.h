@@ -124,6 +124,10 @@ enum scp_reserve_mem_id_t {
 #ifdef SCP_PARAMS_TO_SCP_SUPPORT
 	SCP_DRV_PARAMS_MEM_ID,
 #endif
+#ifdef CONFIG_MTK_ULTRASND_PROXIMITY
+       ULTRA_MEM_ID,
+       SCP_ELLIPTIC_DEBUG_MEM,
+#endif
 	NUMS_MEM_ID,
 };
 

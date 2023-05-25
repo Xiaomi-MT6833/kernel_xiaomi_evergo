@@ -160,6 +160,7 @@ static void _set_vbus(int is_on)
 #ifdef CONFIG_MTK_CHARGER
 #if CONFIG_MTK_GAUGE_VERSION == 30
 		charger_dev_enable_otg(primary_charger, true);
+		//Extb HONGMI-84841,wangbin,wt,MODIFY,20210609,modify OTG output current limit
 		charger_dev_set_boost_current_limit(primary_charger, 1500000);
 #else
 		set_chr_enable_otg(0x1);

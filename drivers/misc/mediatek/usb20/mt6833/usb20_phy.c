@@ -107,17 +107,21 @@ void usb_phy_switch_to_usb(void)
 #define SHFT_RG_USB20_TERM_VREF_SEL 8
 #define OFFSET_RG_USB20_PHY_REV6 0x18
 #define SHFT_RG_USB20_PHY_REV6 30
+//chk88849, guodandan.wt, modify, 20210907, modify for host usb_eye.
+extern bool mt_usb_is_device(void);
 void usb_phy_tuning(void)
 {
 	static bool inited;
 	static s32 u2_vrt_ref, u2_term_ref, u2_enhance;
+	static s32 u2_vrt_ref_host, u2_term_ref_host, u2_enhance_host;
 	struct device_node *of_node;
+	bool host = mt_usb_is_device();
 
 	if (!inited) {
 		/* apply default value */
 		u2_vrt_ref = 5;
 		u2_term_ref = 5;
-		u2_enhance = 1;
+		u2_enhance = 3;
 
 		of_node = of_find_compatible_node(NULL,
 			NULL, "mediatek,phy_tuning");
@@ -132,6 +136,29 @@ void usb_phy_tuning(void)
 		}
 		inited = true;
 	}
+
+/*+chk88849, guodandan.wt, modify, 20210907, modify for host usb_eye.*/
+        if (!host)
+        {
+		u2_vrt_ref_host = 5;
+		u2_term_ref_host = 5;
+		u2_enhance_host = 3;
+		of_node = of_find_compatible_node(NULL,
+			NULL, "mediatek,host_tuning");
+		if (of_node) {
+			/* value won't be updated if property not being found */
+			of_property_read_u32(of_node,
+				"u2_vrt_ref", (u32 *) &u2_vrt_ref_host);
+			of_property_read_u32(of_node,
+				"u2_term_ref", (u32 *) &u2_term_ref_host);
+			of_property_read_u32(of_node,
+				"u2_enhance", (u32 *) &u2_enhance_host);
+		}
+		u2_vrt_ref = u2_vrt_ref_host;
+		u2_term_ref = u2_term_ref_host;
+		u2_enhance = u2_enhance_host;
+        }
+/*-chk88849, guodandan.wt, modify, 20210907, modify for host usb_eye.*/
 
 	if (u2_vrt_ref != -1) {
 		if (u2_vrt_ref <= VAL_MAX_WIDTH_3) {

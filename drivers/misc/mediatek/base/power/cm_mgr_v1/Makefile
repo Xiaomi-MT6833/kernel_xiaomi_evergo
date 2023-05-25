@@ -56,6 +56,7 @@ ccflags-y += \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include \
 	-I$(srctree)/drivers/misc/mediatek/include/mt-plat/$(CONFIG_MTK_PLATFORM)/include/mach \
+	-I$(srctree)/drivers/devfreq/helio-dvfsrc-v3/ \
 	-I$(srctree)/drivers/misc/mediatek/sspm/$(CONFIG_MTK_PLATFORM) \
 	-I$(srctree)/include \
 	-I$(srctree)/include/memory/mediatek/ \
@@ -73,13 +74,14 @@ endif
 ifeq ($(CONFIG_MACH_MT6893),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6893
 obj-y += mt6893/
-else
-ifeq ($(CONFIG_MACH_MT6833),y)
+else ifeq ($(CONFIG_MACH_MT6833),y)
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6833
 obj-y += mt6833/
+else ifeq ($(CONFIG_MACH_MT6877),y)
+ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/mt6877
+obj-y += mt6877/
 else
 ccflags-y += -I$(srctree)/drivers/misc/mediatek/base/power/cm_mgr_v1/$(CONFIG_MTK_PLATFORM)
 obj-y += $(subst ",,$(CONFIG_MTK_PLATFORM))/
-endif
 endif
 

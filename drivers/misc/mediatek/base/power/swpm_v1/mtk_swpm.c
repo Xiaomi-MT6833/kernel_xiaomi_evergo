@@ -188,7 +188,6 @@ static ssize_t gpu_debug_proc_write(struct file *file,
 
 	if (!kstrtouint(buf, 10, &enable_time)) {
 		swpm_gpu_debug = (enable_time) ? true : false;
-#if 1
 		if (swpm_gpu_debug) {
 			if (enable_time < 1000000) {
 				if (enable_time == 1)
@@ -199,11 +198,8 @@ static ssize_t gpu_debug_proc_write(struct file *file,
 				MTKGPUPower_model_start_swpm(enable_time);
 		} else
 			MTKGPUPower_model_stop();
-#else
-		swpm_err("gpu_debug node temporary disable\n");
-#endif
 	} else {
-		swpm_err("echo 1/0 > /proc/swpm/gpu_debug\n");
+		swpm_err("echo 1/0 > /proc/swpm/debug\n");
 	}
 	return count;
 }

@@ -50,6 +50,8 @@ enum ppm_sysboost_user {
 	BOOST_BY_DEBUGD = 5,
 	BOOST_BY_DEBUGD_64,
 	BOOST_BY_BOOT_TIME_OPT,
+	/* BSP.Charge - 2020.11.16 - Config thermal framework */
+	BOOST_BY_XM_THERMAL,
 
 	NR_PPM_SYSBOOST_USER,
 };

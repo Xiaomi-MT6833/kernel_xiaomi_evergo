@@ -744,13 +744,6 @@ static s32 cmdq_sec_session_init(struct cmdq_sec_context *context)
 #endif
 
 		context->state = IWC_WSM_ALLOCATED;
-	case IWC_WSM_ALLOCATED:
-#ifdef CMDQ_GP_SUPPORT
-		err = cmdq_sec_open_session(&context->tee, context->iwc_msg);
-		if (err)
-			break;
-#endif
-		context->state = IWC_SES_OPENED;
 	default:
 		break;
 	}
@@ -1118,7 +1111,8 @@ cmdq_sec_task_submit(struct cmdq_sec *cmdq, struct cmdq_sec_task *task,
 			cmdq->context = context;
 			cmdq->context->state = IWC_INIT;
 			cmdq->context->tgid = current->tgid;
-		}
+		} else
+			context = cmdq->context;
 
 		if (cmdq->context->state == IWC_INIT)
 			cmdq_sec_setup_tee_context_base(cmdq->context);
@@ -1129,11 +1123,24 @@ cmdq_sec_task_submit(struct cmdq_sec *cmdq, struct cmdq_sec_task *task,
 			break;
 		}
 
+		cmdq_log("%s: state:%d", __func__, context->state);
+		if (context->state == IWC_WSM_ALLOCATED) {
+#ifdef CMDQ_GP_SUPPORT
+			err = cmdq_sec_open_session(
+				&context->tee, context->iwc_msg);
+			if (err) {
+				err = -CMDQ_ERR_SEC_CTX_SETUP;
+				break;
+			}
+#endif
+			context->state = IWC_SES_OPENED;
+		}
+
 #ifdef CMDQ_GP_SUPPORT
 		/* do m4u sec init */
 		if (atomic_cmpxchg(&m4u_init, 0, 1) == 0) {
 			m4u_sec_init();
-			cmdq_log("[SEC] M4U_sec_init is called\n");
+			cmdq_msg("[SEC][task] M4U_sec_init is called\n");
 		}
 #endif
 
@@ -1223,7 +1230,7 @@ void cmdq_sec_mbox_switch_normal(struct cmdq_client *cl)
 	struct cmdq_sec_thread *thread =
 		(struct cmdq_sec_thread *)cl->chan->con_priv;
 
-	cmdq_sec_resume(cmdq->mbox.dev);
+	WARN_ON(clk_prepare(cmdq->clock) < 0);
 	cmdq_sec_clk_enable(cmdq);
 	cmdq_log("[ IN] %s: cl:%p cmdq:%p thrd:%p idx:%u\n",
 		__func__, cl, cmdq, thread, thread->idx);
@@ -1237,7 +1244,7 @@ void cmdq_sec_mbox_switch_normal(struct cmdq_client *cl)
 	cmdq_log("[OUT] %s: cl:%p cmdq:%p thrd:%p idx:%u\n",
 		__func__, cl, cmdq, thread, thread->idx);
 	cmdq_sec_clk_disable(cmdq);
-	cmdq_sec_suspend(cmdq->mbox.dev);
+	clk_unprepare(cmdq->clock);
 #endif
 }
 EXPORT_SYMBOL(cmdq_sec_mbox_switch_normal);

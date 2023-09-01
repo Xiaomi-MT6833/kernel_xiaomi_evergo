@@ -642,7 +642,7 @@
 /* GPS GPIO standardization end */
 // #include "mediatek/cust_mt6833_camera.dtsi"
 #include "mediatek/cust_evergo_camera.dtsi"
-#include <evergo/cust.dtsi>
+#include "mediatek/evergo/cust.dtsi"
 #include "mediatek/sia81xx.dtsi"
 #include "mediatek/sc8551.dtsi"
 #include "mediatek/ln8000.dtsi"
